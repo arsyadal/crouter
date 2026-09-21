@@ -1,4 +1,4 @@
-# CRouter — Multi-Provider AI Inference Gateway
+# CRouter: Multi-Provider AI Inference Gateway
 
 > **"One Gateway. Every Model."**  
 > *Self-hosted, open-source AI inference gateway engineered for intelligent routing, resilience, zero-token local testing, and observability.*
@@ -53,6 +53,44 @@
        │  (Live API)   │   │  (Live API)   │ │  (Local Rp0)  │   │  (Local Rp0)  │
        └───────────────┘   └───────────────┘ └───────────────┘   └───────────────┘
 ```
+
+---
+
+## ⚡ Architectural Comparison: CRouter vs 9Router
+
+While hobbyist tools like 9Router cater to local scripts running on a single laptop with embedded databases and prompt-injection shortcuts, CRouter is engineered for platform teams requiring enterprise-grade distributed infrastructure:
+
+```
+┌──────────────────────────────────────┐
+│       9Router (Hobbyist Tool)        │
+│  • Single-node Node.js/SQLite        │
+│  • Prompt-injection hacks (Caveman)  │
+│  • Local file text logging           │
+│  • Linear retries (no breaker state) │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼  CRouter Architectural Evolution
+┌─────────────────────────────────────────────────────────────┐
+│                 CRouter (The Platform Solver)               │
+│  • Decoupled Gateway: Python 3.12 FastAPI AsyncIO Engine    │
+│  • Distributed State: Redis Lua Sliding-Window + PostgreSQL │
+│  • Formal Circuit Breaker: CLOSED -> OPEN -> HALF-OPEN      │
+│  • W3C OpenTelemetry Tracing: Context propagation to Jaeger │
+│  • Zero-Budget Testing: Deterministic Rp0 Mock Provider     │
+│  • Production Cloud-Native: Manifests HPA Kubernetes (2-10) │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Architectural Dimension | 9Router (Hobbyist Tool) | CRouter (Enterprise Solver) |
+| :--- | :--- | :--- |
+| **Gateway Runtime & Decoupling** | Monolithic Node.js: Gateway API and Next.js UI run in the same process, where heavy UI renders can block SSE sockets. | Decoupled Python 3.12 FastAPI AsyncIO gateway engine with independent Next.js frontend, ensuring zero socket blocking. |
+| **State Storage & Horizontal Scale** | Embedded SQLite (`better-sqlite3` / `node:sqlite`). Cannot scale across multiple pods without `SQLITE_BUSY` file-lock errors. | Stateless gateway pods backed by PostgreSQL metadata and a shared Redis cluster. |
+| **Cloud-Native Deployment** | Single process / single VM script. | Production Kubernetes manifests with Horizontal Pod Autoscaler (`infra/k8s/hpa.yaml`) scaling from 2 to 10+ pods. |
+| **Rate Limiting Precision** | In-memory or local SQLite counters. Quota boundaries leak when placed behind a multi-node load balancer. | Atomic Redis Lua sliding-window script (`packages/adapters/`) enforced accurately across all pods. |
+| **Circuit Breakers & Fault Isolation** | Basic linear retry lists. Retries failed upstreams indefinitely on every request, creating thundering herd storms. | Formal Finite State Machine (`CLOSED` -> `OPEN` -> `HALF-OPEN`) with cooldown timeouts and canary probes. |
+| **Observability & Distributed Tracing** | Unstructured plain-text file logging in `logs/` directory. | Native W3C OpenTelemetry TraceContext propagation (`apps/gateway/core/tracing.py`) compatible with Jaeger, Tempo, Datadog. |
+| **Deterministic Testing (Rp0 Budget)** | Relies on third-party live APIs or fragile free-tier promotional credits that frequently discontinue. | Built-in deterministic Mock Provider service on port 8001 (`apps/mock_provider/`) with 50 automated tests. |
+| **Code & Payload Integrity** | Injects lossy prompt modifiers (Caveman / Ponytail) that risk breaking JSON schemas, tool calling, and syntax. | 100% pure payload integrity, focusing optimizations at the protocol and network layers. |
 
 ---
 
@@ -145,13 +183,13 @@ python scripts/smoke_test_live.py --provider openrouter
 ## 📡 Gateway Admin REST API
 
 In addition to the CLI, CRouter provides REST administration endpoints under `/admin`:
-- `GET /admin/overview` — High-level telemetry, key counts, route health, and BYOK status.
-- `GET /admin/routes` — Active routing policies, priority fallback chains, and real-time breaker states.
-- `POST /admin/breaker/reset` — Reset a tripped circuit breaker for a route.
-- `POST /admin/breaker/trip` — Force-trip a circuit breaker for chaos testing.
-- `GET /admin/keys` — List all registered API keys and tenant quotas.
-- `POST /admin/keys` — Create a new API key (returns raw key once).
-- `POST /admin/keys/{id}/revoke` — Revoke an active API key.
+- `GET /admin/overview`: High-level telemetry, key counts, route health, and BYOK status.
+- `GET /admin/routes`: Active routing policies, priority fallback chains, and real-time breaker states.
+- `POST /admin/breaker/reset`: Reset a tripped circuit breaker for a route.
+- `POST /admin/breaker/trip`: Force-trip a circuit breaker for chaos testing.
+- `GET /admin/keys`: List all registered API keys and tenant quotas.
+- `POST /admin/keys`: Create a new API key (returns raw key once).
+- `POST /admin/keys/{id}/revoke`: Revoke an active API key.
 
 ---
 
