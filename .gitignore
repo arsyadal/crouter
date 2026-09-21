@@ -49,3 +49,6 @@ crouter.db
 
 # Docker
 docker-data/
+
+# Whitelist project adapters ignored by global gitignore
+!packages/adapters/gemini.py
