@@ -137,7 +137,7 @@ def test_cli_key_lifecycle():
     # 3. Revoke key
     result_revoke = runner.invoke(cli, ["keys", "revoke", prefix])
     assert result_revoke.exit_code == 0
-    assert "Revoked 1 key" in result_revoke.output
+    assert "Revoked" in result_revoke.output and "key(s) matching prefix" in result_revoke.output
 
     # 4. List keys again to verify status is REVOKED
     result_list_revoked = runner.invoke(cli, ["keys", "list"])

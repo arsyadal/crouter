@@ -27,6 +27,9 @@ import {
   Workflow,
   Lock,
   Boxes,
+  MessageSquare,
+  Key,
+  Minimize2,
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -35,7 +38,8 @@ interface LandingPageProps {
 
 export function LandingPage({ onOpenConsole }: LandingPageProps) {
   const [copiedCmd, setCopiedCmd] = useState(false);
-  const [activeTabCode, setActiveTabCode] = useState<"curl" | "python" | "cursor">("curl");
+  const [activeTabCode, setActiveTabCode] = useState<"curl" | "anthropic" | "python" | "cursor" | "claude">("curl");
+  const [copiedTabCode, setCopiedTabCode] = useState(false);
   const [isDark, setIsDark] = useState<boolean>(false);
 
   const installCmd = "git clone https://github.com/arsyadal/crouter.git && cd crouter";
@@ -44,6 +48,66 @@ export function LandingPage({ onOpenConsole }: LandingPageProps) {
     navigator.clipboard.writeText(installCmd);
     setCopiedCmd(true);
     setTimeout(() => setCopiedCmd(false), 2000);
+  };
+
+  const getCodeSnippet = (tab: "curl" | "anthropic" | "python" | "cursor" | "claude") => {
+    switch (tab) {
+      case "curl":
+        return `curl -X POST http://localhost:8000/v1/chat/completions \\
+  -H "Authorization: Bearer cr_live_YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "auto/coding",
+    "messages": [{"role": "user", "content": "Explain circuit breakers in 2 sentences."}],
+    "stream": true
+  }'`;
+      case "anthropic":
+        return `curl -X POST http://localhost:8000/v1/messages \\
+  -H "x-api-key: cr_live_YOUR_KEY" \\
+  -H "anthropic-version: 2023-06-01" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "auto/coding",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Write a binary search algorithm in Python."}],
+    "stream": true
+  }'`;
+      case "python":
+        return `from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="cr_live_YOUR_KEY",
+)
+
+response = client.chat.completions.create(
+    model="auto/coding",
+    messages=[{"role": "user", "content": "Write an async worker in Python."}],
+    stream=True,
+)
+
+for chunk in response:
+    content = chunk.choices[0].delta.content or ""
+    print(content, end="", flush=True)`;
+      case "cursor":
+        return `// Cursor Settings > Models > OpenAI API Key:
+// 1. Set API Key: cr_live_YOUR_KEY
+// 2. Override Base URL: http://localhost:8000/v1
+// 3. Add Model: auto/coding (or deepseek/deepseek-v4-flash)`;
+      case "claude":
+        return `# Use Claude Code CLI with CRouter:
+export ANTHROPIC_BASE_URL="http://localhost:8000"
+export ANTHROPIC_API_KEY="cr_live_YOUR_KEY"
+
+# Start Claude Code session
+claude`;
+    }
+  };
+
+  const handleCopyTabCode = () => {
+    navigator.clipboard.writeText(getCodeSnippet(activeTabCode));
+    setCopiedTabCode(true);
+    setTimeout(() => setCopiedTabCode(false), 2000);
   };
 
   const toggleTheme = () => {
@@ -327,14 +391,50 @@ export function LandingPage({ onOpenConsole }: LandingPageProps) {
         <div className="mx-auto max-w-7xl space-y-10">
           <div className="max-w-2xl">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              OpenAI-Compatible Protocols & Services
+              OpenAI & Anthropic Protocols
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-              Any client library or IDE expecting standard OpenAI endpoints works out of the box with CRouter. Point your client to localhost:8000/v1.
+              Native dual-protocol AI gateway. Point Claude Code CLI, Cursor, or any OpenAI / Anthropic SDK to localhost:8000.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-5 dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2.5">
+              <div className="flex items-center space-x-2">
+                <div className="rounded-md bg-white p-2 text-zinc-800 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700">
+                  <MessageSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Anthropic Messages (/v1/messages)</h3>
+              </div>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                Native Anthropic protocol for Claude Code CLI and Anthropic SDKs with bidirectional SSE streaming and x-api-key authentication.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-5 dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2.5">
+              <div className="flex items-center space-x-2">
+                <div className="rounded-md bg-white p-2 text-zinc-800 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700">
+                  <Minimize2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Deterministic Token Optimizer</h3>
+              </div>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                Engineering-grade compression stripping ANSI sequences, redundant linter output, and diff bloat. Tracked via X-CRouter-Tokens-Saved.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-5 dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2.5">
+              <div className="flex items-center space-x-2">
+                <div className="rounded-md bg-white p-2 text-zinc-800 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700">
+                  <Key className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Multi-Account Key Pooling</h3>
+              </div>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                Round-robin and least-error distribution across pooled provider API keys with instant 429 rate limit failover.
+              </p>
+            </div>
+
             <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-5 dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2.5">
               <div className="flex items-center space-x-2">
                 <div className="rounded-md bg-white p-2 text-zinc-800 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700">

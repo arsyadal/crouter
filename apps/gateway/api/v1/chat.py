@@ -16,6 +16,7 @@ from apps.gateway.api.deps import (
 )
 from apps.gateway.core.errors import RateLimitExceededError, UpstreamProviderError
 from apps.gateway.core.telemetry import metrics
+from apps.gateway.engine.token_saver import token_optimizer, is_token_saver_bypassed
 from apps.gateway.models.entities import APIKey, RequestEvent
 from apps.gateway.schemas.chat import (
     ChatCompletionRequest,
@@ -33,9 +34,17 @@ async def chat_completions(
     api_key: APIKey = Depends(get_authenticated_key),
     db: AsyncSession = Depends(get_db),
     x_request_id: Optional[str] = Header(None, alias="X-Request-ID"),
+    x_crouter_token_saver: Optional[str] = Header(None, alias="X-CRouter-Token-Saver"),
 ):
     request_id = x_request_id or f"req_{uuid.uuid4().hex[:16]}"
     start_time = time.perf_counter()
+
+    # Deterministic Token Optimizer
+    bypass_token_saver = is_token_saver_bypassed(x_crouter_token_saver)
+    optimized_messages, tokens_saved = token_optimizer.optimize_messages(
+        request_body.messages, bypass=bypass_token_saver
+    )
+    request_body = request_body.model_copy(update={"messages": optimized_messages})
 
     limiter = get_rate_limiter()
     concurrency_leaser = get_concurrency_leaser()
@@ -152,6 +161,7 @@ async def chat_completions(
             "X-CRouter-Model-Selected": selected_route.upstream_model,
             "X-CRouter-Attempts": str(attempts),
             "X-CRouter-Latency-Gateway-Ms": f"{first_chunk_latency_ms:.1f}",
+            "X-CRouter-Tokens-Saved": str(tokens_saved),
         }
         return StreamingResponse(sse_generator(), headers=response_headers, media_type="text/event-stream")
 
@@ -212,6 +222,7 @@ async def chat_completions(
             "X-CRouter-Attempts": str(attempts),
             "X-CRouter-Latency-Gateway-Ms": f"{gateway_latency_ms:.1f}",
             "X-CRouter-Latency-Upstream-Ms": f"{upstream_latency_ms:.1f}",
+            "X-CRouter-Tokens-Saved": str(tokens_saved),
         }
 
         return JSONResponse(

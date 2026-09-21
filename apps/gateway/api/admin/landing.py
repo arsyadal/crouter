@@ -388,6 +388,36 @@ LANDING_HTML = """<!DOCTYPE html>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2">
           <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+            <i data-lucide="message-square" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+            <span>Anthropic Messages (/v1/messages)</span>
+          </div>
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Native Anthropic protocol for Claude Code CLI, OpenClaw, and Anthropic SDKs with bidirectional SSE streaming.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2">
+          <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+            <i data-lucide="minimize-2" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+            <span>Deterministic Token Optimizer</span>
+          </div>
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Safely strips ANSI colors, deduplicates linter output, and compacts diffs without prompt hacks. Inspect via X-CRouter-Tokens-Saved.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2">
+          <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+            <i data-lucide="key" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+            <span>Multi-Account Key Pooling</span>
+          </div>
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Pool multiple API keys per provider with round-robin or least-error distribution and instant 429 rate limit failover.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-2">
+          <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
             <i data-lucide="terminal" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
             <span>Chat Completions (/v1/chat/completions)</span>
           </div>
@@ -432,7 +462,7 @@ LANDING_HTML = """<!DOCTYPE html>
             <span>Diagnostic Response Headers</span>
           </div>
           <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-            Inspect X-CRouter-Provider-Selected, attempts, and gateway latency on every response.
+            Inspect X-CRouter-Provider-Selected, attempts, latency, and tokens saved on every response.
           </p>
         </div>
 
@@ -515,70 +545,152 @@ LANDING_HTML = """<!DOCTYPE html>
           </div>
         </div>
       </div>
+    </div>
+  </section>
 
-      <!-- SECTION: INTEGRATIONS (IDE & CLI) -->
-      <div id="integrations" class="pt-6">
-        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-          Tested IDE & CLI Integrations
-        </h3>
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
-            Cursor IDE
+  <!-- SECTION 3: DEVELOPER INTEGRATIONS & AGENT ENVIRONMENTS -->
+  <section id="integrations" class="border-t border-zinc-200/80 dark:border-zinc-800/80 px-4 py-16 sm:px-6">
+    <div class="mx-auto max-w-7xl space-y-10">
+      <div class="max-w-2xl">
+        <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          IDE & CLI Integrations
+        </h2>
+        <p class="mt-2 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
+          Seamlessly connect your favorite coding agents, IDEs, and developer workflows with native OpenAI and Anthropic protocol support.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              <i data-lucide="code" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>Cursor IDE</span>
+            </div>
+            <span class="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">OpenAI Compatible</span>
           </div>
-          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
-            Claude Code
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Configure Cursor Settings: Override Base URL to <code class="font-mono text-zinc-800 dark:text-zinc-200">http://localhost:8000/v1</code> with model <code class="font-mono text-zinc-800 dark:text-zinc-200">auto/coding</code>.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              <i data-lucide="terminal" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>Claude Code CLI</span>
+            </div>
+            <span class="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-mono text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">Native Anthropic</span>
           </div>
-          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
-            OpenAI Codex
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Run Claude Code with CRouter: <code class="font-mono text-zinc-800 dark:text-zinc-200">ANTHROPIC_BASE_URL=http://localhost:8000 claude</code>. Uses native <code class="font-mono text-zinc-800 dark:text-zinc-200">/v1/messages</code>.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              <i data-lucide="bot" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>Cline & Roo Code</span>
+            </div>
+            <span class="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">VS Code Extension</span>
           </div>
-          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
-            Cline Assistant
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Select OpenAI-compatible provider in Cline settings. Supports real-time SSE chunk streaming and custom routing aliases.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              <i data-lucide="cpu" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>OpenAI Codex & SDKs</span>
+            </div>
+            <span class="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">Standard SDK</span>
           </div>
-          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
-            Antigravity
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Zero code modifications required. Instantiate official OpenAI Python or TypeScript SDKs with base URL <code class="font-mono text-zinc-800 dark:text-zinc-200">http://localhost:8000/v1</code>.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              <i data-lucide="sparkles" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>Google Antigravity & Agy</span>
+            </div>
+            <span class="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">Agent Platform</span>
           </div>
-          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
-            Python SDK
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Full agent pair-programming orchestration with automatic token deduplication, retry backoff, and tenant quota tracking.
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              <i data-lucide="network" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>OpenTelemetry & Prometheus</span>
+            </div>
+            <span class="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">Observability</span>
           </div>
+          <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            W3C traceparent headers forwarded to upstream providers. Prometheus scrape targets ready on <code class="font-mono text-zinc-800 dark:text-zinc-200">/metrics</code>.
+          </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- SECTION 3: DEVELOPER QUICKSTART -->
-  <section id="quickstart" class="border-t border-zinc-200/80 dark:border-zinc-800/80 px-4 py-16 sm:px-6">
+  <!-- SECTION 4: DEVELOPER QUICKSTART -->
+  <section id="quickstart" class="border-t border-zinc-200/80 dark:border-zinc-800/80 px-4 py-16 sm:px-6 bg-white dark:bg-zinc-900/30">
     <div class="mx-auto max-w-7xl space-y-8">
       <div class="max-w-2xl">
         <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
           Developer Quickstart
         </h2>
         <p class="mt-2 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-          Integrate CRouter into your stack in seconds using standard tools.
+          Integrate CRouter into your stack in seconds. Choose your preferred protocol or environment below.
         </p>
       </div>
 
       <div class="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-900/50">
-        <div class="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs dark:border-zinc-800 dark:bg-zinc-950/70">
-          <div class="flex items-center space-x-1">
-            <button id="btn-tab-curl" onclick="switchCodeTab('curl')" class="rounded-md px-3 py-1 font-medium bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100">cURL</button>
-            <button id="btn-tab-python" onclick="switchCodeTab('python')" class="ml-2 rounded-md px-3 py-1 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200">Python (OpenAI SDK)</button>
-            <button id="btn-tab-cursor" onclick="switchCodeTab('cursor')" class="ml-2 rounded-md px-3 py-1 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200">Cursor / Cline IDE</button>
+        <div class="flex flex-wrap items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs dark:border-zinc-800 dark:bg-zinc-950/70 gap-2">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button id="btn-tab-curl" onclick="switchCodeTab('curl')" class="rounded-md px-3 py-1.5 font-medium bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100 min-h-[36px]">cURL (OpenAI)</button>
+            <button id="btn-tab-anthropic" onclick="switchCodeTab('anthropic')" class="rounded-md px-3 py-1.5 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 min-h-[36px]">cURL (Anthropic)</button>
+            <button id="btn-tab-python" onclick="switchCodeTab('python')" class="rounded-md px-3 py-1.5 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 min-h-[36px]">Python SDK</button>
+            <button id="btn-tab-cursor" onclick="switchCodeTab('cursor')" class="rounded-md px-3 py-1.5 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 min-h-[36px]">Cursor IDE</button>
+            <button id="btn-tab-claude" onclick="switchCodeTab('claude')" class="rounded-md px-3 py-1.5 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 min-h-[36px]">Claude Code CLI</button>
           </div>
+          <button
+            type="button"
+            onclick="copyActiveCodeTab()"
+            class="inline-flex items-center space-x-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition"
+            title="Copy snippet"
+          >
+            <i id="quickstart-copy-icon" data-lucide="copy" class="h-3.5 w-3.5"></i>
+            <span id="quickstart-copy-text">Copy</span>
+          </button>
         </div>
 
         <div class="p-5 font-mono text-xs text-zinc-800 dark:text-zinc-200 overflow-x-auto leading-relaxed">
-          <pre id="code-block-curl">curl -X POST http://localhost:8000/v1/chat/completions \\
-  -H "Authorization: Bearer cr_live_YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
+          <pre id="code-block-curl">curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer cr_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
   -d '{
     "model": "auto/coding",
     "messages": [{"role": "user", "content": "Explain circuit breakers in 2 sentences"}],
+    "stream": true
+  }'</pre>
+          <pre id="code-block-anthropic" class="hidden">curl -X POST http://localhost:8000/v1/messages \
+  -H "x-api-key: cr_live_YOUR_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "auto/coding",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Write a binary search algorithm in Python"}],
     "stream": true
   }'</pre>
           <pre id="code-block-python" class="hidden">from openai import OpenAI
@@ -597,10 +709,16 @@ response = client.chat.completions.create(
 for chunk in response:
     content = chunk.choices[0].delta.content or ""
     print(content, end="", flush=True)</pre>
-          <pre id="code-block-cursor" class="hidden">// In Cursor IDE: Settings > Models > OpenAI API Key
+          <pre id="code-block-cursor" class="hidden">// Cursor Settings > Models > OpenAI API Key:
 // 1. Set API Key: cr_live_YOUR_KEY
 // 2. Override Base URL: http://localhost:8000/v1
 // 3. Add Model: auto/coding (or deepseek/deepseek-v4-flash)</pre>
+          <pre id="code-block-claude" class="hidden"># Use Claude Code CLI with CRouter:
+export ANTHROPIC_BASE_URL="http://localhost:8000"
+export ANTHROPIC_API_KEY="cr_live_YOUR_KEY"
+
+# Start Claude Code session
+claude</pre>
         </div>
       </div>
     </div>
@@ -738,17 +856,37 @@ for chunk in response:
       });
     }
 
+    let currentQuickstartTab = 'curl';
     function switchCodeTab(tab) {
-      ['curl', 'python', 'cursor'].forEach(t => {
+      currentQuickstartTab = tab;
+      ['curl', 'anthropic', 'python', 'cursor', 'claude'].forEach(t => {
         const btn = document.getElementById('btn-tab-' + t);
         const block = document.getElementById('code-block-' + t);
+        if (!btn || !block) return;
         if (t === tab) {
-          btn.className = 'rounded-md px-3 py-1 font-medium bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100';
+          btn.className = 'rounded-md px-3 py-1.5 font-medium bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100 min-h-[36px]';
           block.classList.remove('hidden');
         } else {
-          btn.className = 'ml-2 rounded-md px-3 py-1 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200';
+          btn.className = 'rounded-md px-3 py-1.5 font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 min-h-[36px]';
           block.classList.add('hidden');
         }
+      });
+    }
+
+    function copyActiveCodeTab() {
+      const block = document.getElementById('code-block-' + currentQuickstartTab);
+      if (!block) return;
+      navigator.clipboard.writeText(block.innerText).then(() => {
+        const icon = document.getElementById('quickstart-copy-icon');
+        const text = document.getElementById('quickstart-copy-text');
+        if (icon) icon.setAttribute('data-lucide', 'check');
+        if (text) text.innerText = 'Copied!';
+        lucide.createIcons();
+        setTimeout(() => {
+          if (icon) icon.setAttribute('data-lucide', 'copy');
+          if (text) text.innerText = 'Copy';
+          lucide.createIcons();
+        }, 2000);
       });
     }
 

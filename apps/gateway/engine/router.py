@@ -26,6 +26,7 @@ from packages.adapters.mock import MockAdapter
 from packages.adapters.gemini import GeminiAdapter
 from packages.adapters.openrouter import OpenRouterAdapter
 from packages.adapters.commandcode import CommandCodeAdapter
+from apps.gateway.engine.key_pool import ProviderKeyPool, key_pool as default_key_pool
 from apps.gateway.core.config import settings
 
 logger = logging.getLogger("crouter.router")
@@ -60,9 +61,20 @@ class RoutingEngine:
         self,
         circuit_breaker: CircuitBreaker,
         adapter_overrides: Optional[Dict[str, BaseProviderAdapter]] = None,
+        key_pool: Optional[ProviderKeyPool] = None,
     ):
         self.circuit_breaker = circuit_breaker
         self.adapter_overrides = adapter_overrides or {}
+        self.key_pool = key_pool or default_key_pool
+        # Populate key pool from configured settings if available
+        if settings.GEMINI_API_KEYS or settings.GEMINI_API_KEY:
+            self.key_pool.load_from_env_or_string("gemini", settings.GEMINI_API_KEYS or settings.GEMINI_API_KEY)
+        if settings.OPENROUTER_API_KEYS or settings.OPENROUTER_API_KEY:
+            self.key_pool.load_from_env_or_string("openrouter", settings.OPENROUTER_API_KEYS or settings.OPENROUTER_API_KEY)
+        if settings.COMMANDCODE_API_KEYS or settings.COMMANDCODE_API_KEY:
+            self.key_pool.load_from_env_or_string("commandcode", settings.COMMANDCODE_API_KEYS or settings.COMMANDCODE_API_KEY)
+            self.key_pool.load_from_env_or_string("9router", settings.COMMANDCODE_API_KEYS or settings.COMMANDCODE_API_KEY)
+
         self._route_latency_ema: Dict[str, float] = {}
         self._alpha: float = 0.3
 
@@ -80,16 +92,25 @@ class RoutingEngine:
         """Get tracked EMA latency in ms (defaults to 50.0ms)."""
         return self._route_latency_ema.get(route_key, 50.0)
 
-    def get_adapter(self, candidate: RouteCandidate) -> BaseProviderAdapter:
+    def get_adapter(self, candidate: RouteCandidate, api_key_override: Optional[str] = None) -> BaseProviderAdapter:
         if candidate.provider_name in self.adapter_overrides:
             return self.adapter_overrides[candidate.provider_name]
 
-        # Resolve api key from env if secret_env_var is set
+        # Resolve api key from override, key pool, or secret env var
         import os
 
-        api_key = None
-        if candidate.secret_env_var:
-            api_key = os.environ.get(candidate.secret_env_var)
+        api_key = api_key_override
+        if not api_key:
+            if candidate.secret_env_var:
+                raw_val = os.environ.get(candidate.secret_env_var)
+                if raw_val:
+                    self.key_pool.load_from_env_or_string(candidate.provider_name, raw_val)
+                    self.key_pool.load_from_env_or_string(candidate.provider_type, raw_val)
+
+            api_key = (
+                self.key_pool.get_key(candidate.provider_name)
+                or self.key_pool.get_key(candidate.provider_type)
+            )
 
         ptype = candidate.provider_type.lower()
         timeout_s = max(1.0, candidate.timeout_ms / 1000.0)
@@ -303,6 +324,47 @@ class RoutingEngine:
                 )
             ]
 
+        # Anthropic Claude models (e.g. claude-3-5-sonnet-20241022, claude-3-haiku, etc.)
+        if model_alias.startswith("claude") or model_alias.startswith("anthropic/"):
+            claude_candidates = []
+            p_idx = 1
+            if settings.COMMANDCODE_API_KEY or settings.COMMANDCODE_API_KEYS:
+                claude_candidates.append(
+                    RouteCandidate(
+                        provider_name="commandcode",
+                        provider_type="commandcode",
+                        upstream_model="inclusionai/ling-3.0-flash-sante:free",
+                        priority=p_idx,
+                        base_url=settings.COMMANDCODE_BASE_URL,
+                        secret_env_var="COMMANDCODE_API_KEY",
+                        timeout_ms=25000,
+                    )
+                )
+                p_idx += 1
+            if settings.OPENROUTER_API_KEY or settings.OPENROUTER_API_KEYS:
+                claude_candidates.append(
+                    RouteCandidate(
+                        provider_name="openrouter",
+                        provider_type="openrouter",
+                        upstream_model="meta-llama/llama-3.2-3b-instruct:free",
+                        priority=p_idx,
+                        secret_env_var="OPENROUTER_API_KEY",
+                        timeout_ms=20000,
+                    )
+                )
+                p_idx += 1
+            claude_candidates.append(
+                RouteCandidate(
+                    provider_name="mock-a",
+                    provider_type="mock",
+                    upstream_model="mock-deterministic",
+                    priority=p_idx,
+                    base_url=settings.MOCK_PROVIDER_URL,
+                    timeout_ms=5000,
+                )
+            )
+            return claude_candidates
+
         raise ModelNotFoundError(
             f"Requested model or alias '{model_alias}' not found in gateway registry."
         )
@@ -331,11 +393,12 @@ class RoutingEngine:
             attempts += 1
             adapter = self.get_adapter(candidate)
 
-            # Retry transient errors with exponential backoff for live network providers
+            # Retry transient errors with exponential backoff and key rotation for live network providers
             max_retries = 2 if candidate.provider_type != "mock" else 0
             backoff_s = 0.05
 
             for retry_idx in range(max_retries + 1):
+                adapter = self.get_adapter(candidate)
                 start_time = time.perf_counter()
                 try:
                     response = await adapter.send_completion(
@@ -344,14 +407,21 @@ class RoutingEngine:
                     upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
                     self.record_latency(route_key, upstream_latency_ms)
                     await self.circuit_breaker.record_success(route_key)
+                    if getattr(adapter, "api_key", None):
+                        self.key_pool.record_success(candidate.provider_name, adapter.api_key)
                     return response, candidate, attempts, upstream_latency_ms
 
                 except (RateLimitExceededError, UpstreamProviderError) as e:
                     upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
                     err_str = str(e).lower()
-                    if retry_idx < max_retries and any(t in err_str for t in ("429", "503", "504", "rate limit", "timeout")):
+                    is_rate_limit = any(t in err_str for t in ("429", "rate limit"))
+                    if getattr(adapter, "api_key", None):
+                        self.key_pool.record_error(
+                            candidate.provider_name, adapter.api_key, is_rate_limit=is_rate_limit
+                        )
+                    if retry_idx < max_retries and (is_rate_limit or any(t in err_str for t in ("503", "504", "timeout"))):
                         logger.warning(
-                            f"Transient error on {route_key}: {e}. Retrying in {backoff_s:.3f}s (retry {retry_idx+1}/{max_retries})..."
+                            f"Transient error on {route_key}: {e}. Retrying with next key/attempt in {backoff_s:.3f}s (retry {retry_idx+1}/{max_retries})..."
                         )
                         await asyncio.sleep(backoff_s)
                         backoff_s *= 2.0
@@ -366,6 +436,8 @@ class RoutingEngine:
                 except Exception as e:
                     upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
                     await self.circuit_breaker.record_failure(route_key)
+                    if getattr(adapter, "api_key", None):
+                        self.key_pool.record_error(candidate.provider_name, adapter.api_key)
                     last_error = e
                     logger.warning(
                         f"Route attempt {attempts} on {candidate.provider_name} failed: {e}"
@@ -414,6 +486,8 @@ class RoutingEngine:
                 first_chunk_latency_ms = (time.perf_counter() - start_time) * 1000.0
                 self.record_latency(route_key, first_chunk_latency_ms)
                 await self.circuit_breaker.record_success(route_key)
+                if getattr(adapter, "api_key", None):
+                    self.key_pool.record_success(candidate.provider_name, adapter.api_key)
 
                 async def full_stream():
                     try:
@@ -437,6 +511,8 @@ class RoutingEngine:
             except StopAsyncIteration:
                 # Stream ended immediately without chunks
                 await self.circuit_breaker.record_success(route_key)
+                if getattr(adapter, "api_key", None):
+                    self.key_pool.record_success(candidate.provider_name, adapter.api_key)
 
                 async def empty_stream():
                     return
@@ -447,6 +523,12 @@ class RoutingEngine:
             except Exception as e:
                 # Pre-stream failure! We haven't emitted bytes to client yet, so failover is safe!
                 await self.circuit_breaker.record_failure(route_key)
+                if getattr(adapter, "api_key", None):
+                    err_str = str(e).lower()
+                    is_rate_limit = any(t in err_str for t in ("429", "rate limit"))
+                    self.key_pool.record_error(
+                        candidate.provider_name, adapter.api_key, is_rate_limit=is_rate_limit
+                    )
                 last_error = e
                 logger.warning(
                     f"Pre-stream attempt {attempts} on {candidate.provider_name} failed: {e}. Falling over..."

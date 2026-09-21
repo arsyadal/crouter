@@ -28,8 +28,11 @@ class Settings(BaseSettings):
     MOCK_PROVIDER_PORT: int = 8001
 
     GEMINI_API_KEY: Optional[str] = None
+    GEMINI_API_KEYS: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_API_KEYS: Optional[str] = None
     COMMANDCODE_API_KEY: Optional[str] = None
+    COMMANDCODE_API_KEYS: Optional[str] = None
     COMMANDCODE_BASE_URL: str = "https://api.commandcode.ai/provider/v1"
 
     DEFAULT_RATE_LIMIT_RPM: int = 60

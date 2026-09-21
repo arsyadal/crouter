@@ -60,4 +60,5 @@ node_modules/
 .next/
 out/
 next-env.d.ts
-
+# Local Agent Skills (User requested not to push)
+.agents/

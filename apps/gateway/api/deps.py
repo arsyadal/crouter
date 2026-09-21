@@ -354,18 +354,25 @@ def hash_key(token: str) -> str:
 
 async def get_authenticated_key(
     authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None, alias="x-api-key"),
     db: AsyncSession = Depends(get_db),
 ) -> APIKey:
-    """Validate Bearer gateway API key from Authorization header.
+    """Validate gateway API key from Authorization header or x-api-key header.
 
+    Supports both OpenAI Bearer tokens and Anthropic x-api-key headers.
     Rejects missing or invalid keys fail-closed.
     """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise InvalidAPIKeyError("Missing or invalid Authorization header format. Expected 'Bearer cr_live_...'")
+    raw_token = None
+    if authorization:
+        if authorization.startswith("Bearer "):
+            raw_token = authorization.replace("Bearer ", "").strip()
+        else:
+            raw_token = authorization.strip()
+    elif x_api_key:
+        raw_token = x_api_key.strip()
 
-    raw_token = authorization.replace("Bearer ", "").strip()
     if not raw_token:
-        raise InvalidAPIKeyError("Authorization bearer token is empty.")
+        raise InvalidAPIKeyError("Missing or invalid API key. Expected 'Authorization: Bearer cr_live_...' or 'x-api-key: cr_live_...'")
 
     key_hash = hash_key(raw_token)
 
