@@ -77,37 +77,95 @@ async def init_db():
             session.add(p_openrouter)
             prov_map["openrouter"] = p_openrouter
 
+        if "commandcode" not in prov_map:
+            p_commandcode = Provider(
+                name="commandcode",
+                provider_type="commandcode",
+                base_url=settings.COMMANDCODE_BASE_URL,
+                secret_env_var="COMMANDCODE_API_KEY",
+                is_active=True,
+            )
+            session.add(p_commandcode)
+            prov_map["commandcode"] = p_commandcode
+
         await session.flush()
+
+        # Seed mock-default policy for explicit deterministic mock testing
+        res_mock_pol = await session.execute(
+            select(RoutingPolicy).where(RoutingPolicy.alias == "mock-default")
+        )
+        if not res_mock_pol.scalars().first():
+            policy_mock = RoutingPolicy(
+                alias="mock-default",
+                description="Explicit deterministic mock provider routing policy",
+                max_retries=2,
+                timeout_ms=5000,
+            )
+            session.add(policy_mock)
+            await session.flush()
+            route_ma = ModelRoute(
+                policy_id=policy_mock.id,
+                provider_id=prov_map["mock-a"].id,
+                upstream_model="mock-deterministic",
+                priority=1,
+                is_enabled=True,
+            )
+            route_mb = ModelRoute(
+                policy_id=policy_mock.id,
+                provider_id=prov_map["mock-b"].id,
+                upstream_model="mock-deterministic",
+                priority=2,
+                is_enabled=True,
+            )
+            session.add_all([route_ma, route_mb])
 
         # Check auto/coding policy
         res_coding = await session.execute(
             select(RoutingPolicy).where(RoutingPolicy.alias == "auto/coding")
         )
         if not res_coding.scalars().first():
+            has_cmd = bool(settings.COMMANDCODE_API_KEY and len(settings.COMMANDCODE_API_KEY.strip()) > 0)
             policy_coding = RoutingPolicy(
                 alias="auto/coding",
-                description="Default auto-coding policy routing between mock providers",
+                description="Default auto-coding policy routing to real upstream model",
                 max_retries=2,
-                timeout_ms=5000,
+                timeout_ms=25000 if has_cmd else 5000,
             )
             session.add(policy_coding)
             await session.flush()
 
-            route_a = ModelRoute(
-                policy_id=policy_coding.id,
-                provider_id=prov_map["mock-a"].id,
-                upstream_model="mock-deterministic",
-                priority=1,
-                is_enabled=True,
-            )
-            route_b = ModelRoute(
-                policy_id=policy_coding.id,
-                provider_id=prov_map["mock-b"].id,
-                upstream_model="mock-deterministic",
-                priority=2,
-                is_enabled=True,
-            )
-            session.add_all([route_a, route_b])
+            if has_cmd and "commandcode" in prov_map:
+                route_cmd_1 = ModelRoute(
+                    policy_id=policy_coding.id,
+                    provider_id=prov_map["commandcode"].id,
+                    upstream_model="deepseek/deepseek-v4-flash",
+                    priority=1,
+                    is_enabled=True,
+                )
+                route_cmd_2 = ModelRoute(
+                    policy_id=policy_coding.id,
+                    provider_id=prov_map["commandcode"].id,
+                    upstream_model="inclusionai/ling-3.0-flash-sante:free",
+                    priority=2,
+                    is_enabled=True,
+                )
+                session.add_all([route_cmd_1, route_cmd_2])
+            else:
+                route_a = ModelRoute(
+                    policy_id=policy_coding.id,
+                    provider_id=prov_map["mock-a"].id,
+                    upstream_model="mock-deterministic",
+                    priority=1,
+                    is_enabled=True,
+                )
+                route_b = ModelRoute(
+                    policy_id=policy_coding.id,
+                    provider_id=prov_map["mock-b"].id,
+                    upstream_model="mock-deterministic",
+                    priority=2,
+                    is_enabled=True,
+                )
+                session.add_all([route_a, route_b])
 
         # Check fast/chat policy
         res_chat = await session.execute(
@@ -116,35 +174,46 @@ async def init_db():
         if not res_chat.scalars().first():
             policy_chat = RoutingPolicy(
                 alias="fast/chat",
-                description="Low-latency conversational routing across Gemini, OpenRouter, and fallback",
+                description="Low-latency conversational routing across CommandCode, Gemini, and OpenRouter",
                 max_retries=2,
-                timeout_ms=10000,
+                timeout_ms=15000,
             )
             session.add(policy_chat)
             await session.flush()
 
-            route_gemini = ModelRoute(
-                policy_id=policy_chat.id,
-                provider_id=prov_map["gemini"].id,
-                upstream_model="gemini-1.5-flash",
-                priority=1,
-                is_enabled=True,
+            chat_routes = []
+            priority_idx = 1
+            if "commandcode" in prov_map:
+                chat_routes.append(
+                    ModelRoute(
+                        policy_id=policy_chat.id,
+                        provider_id=prov_map["commandcode"].id,
+                        upstream_model="inclusionai/ling-3.0-flash-sante:free",
+                        priority=priority_idx,
+                        is_enabled=True,
+                    )
+                )
+                priority_idx += 1
+            chat_routes.append(
+                ModelRoute(
+                    policy_id=policy_chat.id,
+                    provider_id=prov_map["gemini"].id,
+                    upstream_model="gemini-1.5-flash",
+                    priority=priority_idx,
+                    is_enabled=True,
+                )
             )
-            route_openrouter = ModelRoute(
-                policy_id=policy_chat.id,
-                provider_id=prov_map["openrouter"].id,
-                upstream_model="meta-llama/llama-3.2-3b-instruct:free",
-                priority=2,
-                is_enabled=True,
+            priority_idx += 1
+            chat_routes.append(
+                ModelRoute(
+                    policy_id=policy_chat.id,
+                    provider_id=prov_map["openrouter"].id,
+                    upstream_model="meta-llama/llama-3.2-3b-instruct:free",
+                    priority=priority_idx,
+                    is_enabled=True,
+                )
             )
-            route_mock_fallback = ModelRoute(
-                policy_id=policy_chat.id,
-                provider_id=prov_map["mock-a"].id,
-                upstream_model="mock-deterministic",
-                priority=3,
-                is_enabled=True,
-            )
-            session.add_all([route_gemini, route_openrouter, route_mock_fallback])
+            session.add_all(chat_routes)
 
         await session.commit()
 

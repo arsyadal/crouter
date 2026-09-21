@@ -89,7 +89,7 @@ class CommandCodeAdapter(BaseProviderAdapter):
             data = response.json()
             for choice in data.get("choices", []):
                 msg = choice.get("message", {})
-                if msg.get("content") is None:
+                if not msg.get("content"):
                     msg["content"] = msg.get("reasoning") or ""
             return ChatCompletionResponse.model_validate(data)
         finally:

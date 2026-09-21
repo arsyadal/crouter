@@ -1,11 +1,17 @@
 import os
 import pytest
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from packages.adapters.gemini import GeminiAdapter
 from packages.adapters.openrouter import OpenRouterAdapter
+from packages.adapters.commandcode import CommandCodeAdapter
 from apps.gateway.schemas.chat import ChatCompletionRequest, ChatMessage
 
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+COMMANDCODE_KEY = os.getenv("COMMANDCODE_API_KEY", "").strip()
 
 
 @pytest.mark.skipif(not GEMINI_KEY, reason="Opt-in test: GEMINI_API_KEY not configured in environment")
@@ -78,3 +84,42 @@ async def test_live_openrouter_streaming():
         if chunk.choices and chunk.choices[0].delta.content:
             chunks.append(chunk.choices[0].delta.content)
     assert len(chunks) > 0
+
+
+@pytest.mark.skipif(not COMMANDCODE_KEY, reason="Opt-in test: COMMANDCODE_API_KEY not configured in environment")
+@pytest.mark.asyncio
+async def test_live_commandcode_inference():
+    adapter = CommandCodeAdapter(api_key=COMMANDCODE_KEY, timeout_seconds=25.0)
+    target_model = "inclusionai/ling-3.0-flash-sante:free"
+    req = ChatCompletionRequest(
+        model=target_model,
+        messages=[
+            ChatMessage(role="user", content="Respond strictly with the single word: 'pong'."),
+        ],
+        max_tokens=15,
+    )
+    res = await adapter.send_completion(req, target_model=target_model)
+    assert res.choices is not None
+    assert len(res.choices) > 0
+    assert len(res.choices[0].message.content) > 0
+
+
+@pytest.mark.skipif(not COMMANDCODE_KEY, reason="Opt-in test: COMMANDCODE_API_KEY not configured in environment")
+@pytest.mark.asyncio
+async def test_live_commandcode_streaming():
+    adapter = CommandCodeAdapter(api_key=COMMANDCODE_KEY, timeout_seconds=25.0)
+    target_model = "inclusionai/ling-3.0-flash-sante:free"
+    req = ChatCompletionRequest(
+        model=target_model,
+        messages=[
+            ChatMessage(role="user", content="Count 1, 2, 3."),
+        ],
+        max_tokens=25,
+        stream=True,
+    )
+    chunks = []
+    async for chunk in adapter.stream_completion(req, target_model=target_model):
+        if chunk.choices and chunk.choices[0].delta.content:
+            chunks.append(chunk.choices[0].delta.content)
+    assert len(chunks) > 0
+

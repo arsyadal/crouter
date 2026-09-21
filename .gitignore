@@ -10,8 +10,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Python packaging lib (only root)
+/lib/
+/lib64/
+!apps/dashboard/src/lib/
 parts/
 sdist/
 var/
@@ -52,3 +54,10 @@ docker-data/
 
 # Whitelist project adapters ignored by global gitignore
 !packages/adapters/gemini.py
+
+# Node & Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+

@@ -79,3 +79,4 @@ class OverviewResponse(BaseModel):
     gateway_version: str
     live_gemini_configured: bool
     live_openrouter_configured: bool
+    live_commandcode_configured: bool = False

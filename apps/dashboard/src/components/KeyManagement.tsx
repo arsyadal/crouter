@@ -5,14 +5,18 @@ import { KeyItem, KeyCreateResult, createKey, revokeKey } from "@/lib/api";
 import {
   Key,
   Plus,
+  Trash2,
   Copy,
   Check,
+  RefreshCw,
   Ban,
   ShieldCheck,
   AlertTriangle,
-  RefreshCw,
   X,
+  ExternalLink,
+  Info,
 } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface KeyManagementProps {
   keys: KeyItem[];
@@ -95,20 +99,20 @@ export function KeyManagement({
       {/* Header and Create Button */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">
+          <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             Gateway API Key Governance
           </h2>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Issue tenant-scoped bearer keys backed by SHA-256 hash persistence, Redis rate limits, and concurrency caps.
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="inline-flex items-center space-x-2 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-slate-700 disabled:opacity-50"
+            className="inline-flex items-center space-x-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 shadow-sm transition dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </button>
           <button
@@ -116,19 +120,19 @@ export function KeyManagement({
               setModalOpen(true);
               setError(null);
             }}
-            className="inline-flex items-center space-x-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+            className="inline-flex items-center space-x-1.5 rounded-md bg-zinc-900 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-zinc-800 transition dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             <span>Create API Key</span>
           </button>
         </div>
       </div>
 
       {/* Keys Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="border-b border-slate-800 bg-slate-950/40 uppercase tracking-wider text-slate-400">
+          <table className="w-full text-left text-xs text-zinc-700 dark:text-zinc-300">
+            <thead className="border-b border-zinc-200 bg-zinc-50 uppercase tracking-wider text-zinc-500 font-medium text-[11px] dark:border-zinc-800 dark:bg-zinc-950/70 dark:text-zinc-400">
               <tr>
                 <th className="px-5 py-3 font-medium">Tenant</th>
                 <th className="px-5 py-3 font-medium">Key Prefix</th>
@@ -139,46 +143,46 @@ export function KeyManagement({
                 <th className="px-5 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-zinc-200/80 dark:divide-zinc-800/60">
               {keys.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-5 py-8 text-center text-zinc-400 dark:text-zinc-500">
                     No gateway keys found. Click &quot;Create API Key&quot; to issue the first token.
                   </td>
                 </tr>
               ) : (
                 keys.map((k) => (
-                  <tr key={k.id} className="transition hover:bg-slate-800/30">
-                    <td className="px-5 py-3 font-medium text-white">
+                  <tr key={k.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
+                    <td className="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">
                       {k.tenant}
                     </td>
-                    <td className="px-5 py-3 font-mono text-slate-300">
+                    <td className="px-5 py-3 font-mono text-zinc-700 dark:text-zinc-300">
                       {k.key_prefix}...
                     </td>
                     <td className="px-5 py-3">
-                      <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-slate-300">
+                      <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-0.5 font-mono text-zinc-700 text-[11px] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
                         {k.rate_limit_rpm} RPM
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-slate-300">
+                      <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-0.5 font-mono text-zinc-700 text-[11px] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
                         {k.max_concurrency} inflight
                       </span>
                     </td>
                     <td className="px-5 py-3">
                       {k.is_active ? (
-                        <span className="inline-flex items-center space-x-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/20">
+                        <span className="inline-flex items-center space-x-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
                           <ShieldCheck className="h-3 w-3" />
                           <span>ACTIVE</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center space-x-1 rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-slate-400 border border-slate-700">
+                        <span className="inline-flex items-center space-x-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600 border border-zinc-200 dark:bg-zinc-800/80 dark:text-zinc-400 dark:border-zinc-700">
                           <Ban className="h-3 w-3" />
                           <span>REVOKED</span>
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-slate-400">
+                    <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400 font-mono text-[11px]">
                       {k.created_at ? new Date(k.created_at).toLocaleString() : "-"}
                     </td>
                     <td className="px-5 py-3 text-right">
@@ -186,7 +190,7 @@ export function KeyManagement({
                         <button
                           onClick={() => handleRevokeKey(k.id)}
                           disabled={revokingId === k.id}
-                          className="inline-flex items-center space-x-1 rounded border border-rose-800/60 bg-rose-950/40 px-2.5 py-1 text-xs font-medium text-rose-300 transition hover:bg-rose-900/60 disabled:opacity-50"
+                          className="inline-flex items-center space-x-1 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 transition dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400 dark:hover:bg-rose-900/40 disabled:opacity-50"
                         >
                           <Ban className="h-3 w-3" />
                           <span>Revoke</span>
@@ -203,31 +207,35 @@ export function KeyManagement({
 
       {/* Creation Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center space-x-2">
-                <Key className="h-5 w-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Create New Gateway API Key</h3>
+                <div className="rounded-md bg-zinc-100 p-1 border border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700/50">
+                  <Key className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
+                </div>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Create New Gateway API Key</h3>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleCreateKey} className="mt-4 space-y-4">
               {error && (
-                <div className="rounded-lg bg-rose-950/40 p-3 text-xs text-rose-300 border border-rose-800/60">
-                  {error}
-                </div>
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Validation Error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-300">
-                  Tenant Name <span className="text-rose-400">*</span>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Tenant Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -235,13 +243,13 @@ export function KeyManagement({
                   placeholder="e.g. sdcraft, dev-team, agent-service"
                   value={tenantInput}
                   onChange={(e) => setTenantInput(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-zinc-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300">
+                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     Rate Limit (RPM)
                   </label>
                   <input
@@ -249,11 +257,11 @@ export function KeyManagement({
                     min={1}
                     value={rateLimitInput}
                     onChange={(e) => setRateLimitInput(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300">
+                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     Max Concurrency
                   </label>
                   <input
@@ -261,13 +269,13 @@ export function KeyManagement({
                     min={1}
                     value={concurrencyInput}
                     onChange={(e) => setConcurrencyInput(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300">
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
                   Explicit Key Token (Optional)
                 </label>
                 <input
@@ -275,22 +283,22 @@ export function KeyManagement({
                   placeholder="Leave empty to auto-generate cr_live_..."
                   value={explicitKeyInput}
                   onChange={(e) => setExplicitKeyInput(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-zinc-500"
                 />
               </div>
 
-              <div className="mt-6 flex justify-end space-x-3 pt-3 border-t border-slate-800">
+              <div className="mt-6 flex justify-end space-x-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800"
+                  className="rounded-md border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                  className="rounded-md bg-zinc-900 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-50"
                 >
                   {submitting ? "Generating..." : "Generate Key"}
                 </button>
@@ -302,59 +310,62 @@ export function KeyManagement({
 
       {/* Key Created Modal (Raw Key Display) */}
       {createdResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-indigo-500/40 bg-[#0f172a] p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center space-x-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                <ShieldCheck className="h-6 w-6" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30">
+                <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">API Key Created Successfully!</h3>
-                <p className="text-xs text-slate-400">Tenant: {createdResult.tenant}</p>
+                <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">API Key Created Successfully</h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Tenant: {createdResult.tenant}</p>
               </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-300 flex items-start space-x-2">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
-              <span>
-                <strong>Save this key now!</strong> For security, only the SHA-256 hash is saved in CRouter database. You will not be able to view this raw token again.
-              </span>
             </div>
 
             <div className="mt-4">
-              <label className="block text-xs font-medium text-slate-300">Generated Bearer Token</label>
+              <Alert variant="warning">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Save this key now</AlertTitle>
+                <AlertDescription>
+                  For security, only the SHA-256 hash is saved in CRouter database. You will not be able to view this raw token again.
+                </AlertDescription>
+              </Alert>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Generated Bearer Token</label>
               <div className="mt-1 flex items-center space-x-2">
                 <input
                   type="text"
                   readOnly
                   value={createdResult.key}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono text-indigo-300 selection:bg-indigo-500 selection:text-white"
+                  className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-mono text-zinc-900 selection:bg-zinc-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 focus:outline-none"
                 />
                 <button
                   onClick={() => handleCopy(createdResult.key)}
-                  className="inline-flex items-center space-x-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500"
+                  className="inline-flex items-center space-x-1 rounded-md bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shrink-0"
                 >
-                  {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}
+                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                   <span>{copied ? "Copied" : "Copy"}</span>
                 </button>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-slate-800">
+            <div className="mt-6 flex justify-end space-x-2 pt-4 border-t border-zinc-200 dark:border-zinc-800">
               {onKeySelectedForPlayground && (
                 <button
                   onClick={() => {
                     onKeySelectedForPlayground(createdResult.key);
                     setCreatedResult(null);
                   }}
-                  className="rounded-lg border border-indigo-500/40 bg-indigo-950/40 px-4 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo-900/60"
+                  className="rounded-md border border-zinc-300 bg-zinc-100 px-3.5 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-200 transition dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
                 >
                   Use in Playground
                 </button>
               )}
               <button
                 onClick={() => setCreatedResult(null)}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-medium text-white hover:bg-slate-700"
+                className="rounded-md border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
               >
                 Close
               </button>

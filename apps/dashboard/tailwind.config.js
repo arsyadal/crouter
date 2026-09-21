@@ -8,17 +8,27 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-geist-sans)", "Geist", "Inter", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "Geist Mono", "JetBrains Mono", "ui-monospace", "monospace"],
+      },
       colors: {
+        zinc: {
+          850: "#1f1f23",
+          900: "#18181b",
+          950: "#09090b",
+        },
         brand: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
-          900: "#312e81",
+          50: "#f4f4f5",
+          100: "#e4e4e7",
+          500: "#71717a",
+          600: "#52525b",
+          700: "#3f3f46",
+          900: "#18181b",
         },
       },
     },
   },
   plugins: [],
 };
+

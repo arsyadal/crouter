@@ -10,7 +10,7 @@ from apps.gateway.models.entities import Tenant, APIKey
 
 @click.group()
 def cli():
-    """CRouter CLI — Management and provisioning tool."""
+    """CRouter CLI: Management and provisioning tool."""
     pass
 
 

@@ -83,4 +83,14 @@ async def get_overview(
         gateway_version=settings.VERSION,
         live_gemini_configured=bool(settings.GEMINI_API_KEY and len(settings.GEMINI_API_KEY.strip()) > 0),
         live_openrouter_configured=bool(settings.OPENROUTER_API_KEY and len(settings.OPENROUTER_API_KEY.strip()) > 0),
+        live_commandcode_configured=bool(settings.COMMANDCODE_API_KEY and len(settings.COMMANDCODE_API_KEY.strip()) > 0),
     )
+
+
+@router.get("/traces")
+async def get_traces(limit: int = 50):
+    """Retrieve recent OpenTelemetry distributed traces and span telemetry."""
+    from apps.gateway.core.tracing import tracer
+
+    return {"data": tracer.get_recent_spans(limit=limit)}
+

@@ -1,3 +1,4 @@
+import asyncio
 import time
 import logging
 from typing import List, Dict, Any, Optional, Tuple, AsyncIterator
@@ -62,6 +63,22 @@ class RoutingEngine:
     ):
         self.circuit_breaker = circuit_breaker
         self.adapter_overrides = adapter_overrides or {}
+        self._route_latency_ema: Dict[str, float] = {}
+        self._alpha: float = 0.3
+
+    def record_latency(self, route_key: str, latency_ms: float) -> None:
+        """Record latency sample using exponential moving average (EMA)."""
+        current = self._route_latency_ema.get(route_key)
+        if current is None:
+            self._route_latency_ema[route_key] = latency_ms
+        else:
+            self._route_latency_ema[route_key] = (
+                self._alpha * latency_ms + (1.0 - self._alpha) * current
+            )
+
+    def get_latency(self, route_key: str) -> float:
+        """Get tracked EMA latency in ms (defaults to 50.0ms)."""
+        return self._route_latency_ema.get(route_key, 50.0)
 
     def get_adapter(self, candidate: RouteCandidate) -> BaseProviderAdapter:
         if candidate.provider_name in self.adapter_overrides:
@@ -169,32 +186,43 @@ class RoutingEngine:
 
         # Built-in fast/chat policy
         if model_alias == "fast/chat":
-            return [
+            chat_candidates = []
+            p_idx = 1
+            if settings.COMMANDCODE_API_KEY:
+                chat_candidates.append(
+                    RouteCandidate(
+                        provider_name="commandcode",
+                        provider_type="commandcode",
+                        upstream_model="inclusionai/ling-3.0-flash-sante:free",
+                        priority=p_idx,
+                        base_url=settings.COMMANDCODE_BASE_URL,
+                        secret_env_var="COMMANDCODE_API_KEY",
+                        timeout_ms=15000,
+                    )
+                )
+                p_idx += 1
+            chat_candidates.append(
                 RouteCandidate(
                     provider_name="gemini",
                     provider_type="gemini",
                     upstream_model="gemini-1.5-flash",
-                    priority=1,
+                    priority=p_idx,
                     secret_env_var="GEMINI_API_KEY",
                     timeout_ms=10000,
-                ),
+                )
+            )
+            p_idx += 1
+            chat_candidates.append(
                 RouteCandidate(
                     provider_name="openrouter",
                     provider_type="openrouter",
                     upstream_model="meta-llama/llama-3.2-3b-instruct:free",
-                    priority=2,
+                    priority=p_idx,
                     secret_env_var="OPENROUTER_API_KEY",
                     timeout_ms=10000,
-                ),
-                RouteCandidate(
-                    provider_name="mock-a",
-                    provider_type="mock",
-                    upstream_model="mock-deterministic",
-                    priority=3,
-                    base_url=settings.MOCK_PROVIDER_URL,
-                    timeout_ms=5000,
-                ),
-            ]
+                )
+            )
+            return chat_candidates
 
         # Explicit provider format check: e.g. "mock-a" or "mock-b"
         if model_alias.startswith("mock-"):
@@ -257,14 +285,6 @@ class RoutingEngine:
                     secret_env_var="COMMANDCODE_API_KEY",
                     timeout_ms=20000,
                 ),
-                RouteCandidate(
-                    provider_name="mock-a",
-                    provider_type="mock",
-                    upstream_model="mock-deterministic",
-                    priority=3,
-                    base_url=settings.MOCK_PROVIDER_URL,
-                    timeout_ms=5000,
-                ),
             ]
 
         # Explicit direct 9Router / Command Code model with 9router/ or commandcode/ prefix
@@ -292,11 +312,13 @@ class RoutingEngine:
         request: ChatCompletionRequest,
         db: Optional[AsyncSession] = None,
     ) -> Tuple[ChatCompletionResponse, RouteCandidate, int, float]:
-        """Execute non-streaming request with pre-stream priority failover.
+        """Execute non-streaming request with pre-stream priority failover and latency ranking.
 
         Returns: (response, selected_route, attempts, upstream_latency_ms)
         """
         candidates = await self.resolve_routes(request.model, db)
+        # Order candidates by priority first, then lowest tracked EMA latency
+        candidates.sort(key=lambda c: (c.priority, self.get_latency(c.route_key)))
         attempts = 0
         last_error: Optional[Exception] = None
 
@@ -308,24 +330,47 @@ class RoutingEngine:
 
             attempts += 1
             adapter = self.get_adapter(candidate)
-            start_time = time.perf_counter()
 
-            try:
-                response = await adapter.send_completion(
-                    request, target_model=candidate.upstream_model
-                )
-                upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
-                await self.circuit_breaker.record_success(route_key)
-                return response, candidate, attempts, upstream_latency_ms
+            # Retry transient errors with exponential backoff for live network providers
+            max_retries = 2 if candidate.provider_type != "mock" else 0
+            backoff_s = 0.05
 
-            except Exception as e:
-                upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
-                await self.circuit_breaker.record_failure(route_key)
-                last_error = e
-                logger.warning(
-                    f"Route attempt {attempts} on {candidate.provider_name} failed: {e}"
-                )
-                # Continue loop to try next route candidate in chain
+            for retry_idx in range(max_retries + 1):
+                start_time = time.perf_counter()
+                try:
+                    response = await adapter.send_completion(
+                        request, target_model=candidate.upstream_model
+                    )
+                    upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
+                    self.record_latency(route_key, upstream_latency_ms)
+                    await self.circuit_breaker.record_success(route_key)
+                    return response, candidate, attempts, upstream_latency_ms
+
+                except (RateLimitExceededError, UpstreamProviderError) as e:
+                    upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
+                    err_str = str(e).lower()
+                    if retry_idx < max_retries and any(t in err_str for t in ("429", "503", "504", "rate limit", "timeout")):
+                        logger.warning(
+                            f"Transient error on {route_key}: {e}. Retrying in {backoff_s:.3f}s (retry {retry_idx+1}/{max_retries})..."
+                        )
+                        await asyncio.sleep(backoff_s)
+                        backoff_s *= 2.0
+                        continue
+                    await self.circuit_breaker.record_failure(route_key)
+                    last_error = e
+                    logger.warning(
+                        f"Route attempt {attempts} on {candidate.provider_name} failed: {e}"
+                    )
+                    break
+
+                except Exception as e:
+                    upstream_latency_ms = (time.perf_counter() - start_time) * 1000.0
+                    await self.circuit_breaker.record_failure(route_key)
+                    last_error = e
+                    logger.warning(
+                        f"Route attempt {attempts} on {candidate.provider_name} failed: {e}"
+                    )
+                    break
 
         if last_error:
             raise NoHealthyRouteError(
@@ -341,12 +386,13 @@ class RoutingEngine:
         request: ChatCompletionRequest,
         db: Optional[AsyncSession] = None,
     ) -> Tuple[AsyncIterator[ChatCompletionChunk], RouteCandidate, int]:
-        """Execute streaming request with pre-stream priority failover.
+        """Execute streaming request with pre-stream priority failover and latency ranking.
 
         Pre-stream failover is allowed before the first chunk is emitted.
         Returns: (chunk_iterator, selected_route, attempts)
         """
         candidates = await self.resolve_routes(request.model, db)
+        candidates.sort(key=lambda c: (c.priority, self.get_latency(c.route_key)))
         attempts = 0
         last_error: Optional[Exception] = None
 
@@ -357,6 +403,7 @@ class RoutingEngine:
 
             attempts += 1
             adapter = self.get_adapter(candidate)
+            start_time = time.perf_counter()
             stream_gen = adapter.stream_completion(
                 request, target_model=candidate.upstream_model
             )
@@ -364,6 +411,8 @@ class RoutingEngine:
             # Test receiving the first chunk before committing downstream
             try:
                 first_chunk = await stream_gen.__anext__()
+                first_chunk_latency_ms = (time.perf_counter() - start_time) * 1000.0
+                self.record_latency(route_key, first_chunk_latency_ms)
                 await self.circuit_breaker.record_success(route_key)
 
                 async def full_stream():
