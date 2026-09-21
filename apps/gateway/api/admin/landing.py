@@ -449,6 +449,108 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
   </section>
 
+  <!-- SECTION: PROVIDERS & REAL UPSTREAM CONNECTIVITY -->
+  <section id="providers" class="border-t border-zinc-200/80 dark:border-zinc-800/80 px-4 py-16 sm:px-6">
+    <div class="mx-auto max-w-7xl space-y-12">
+      <div class="max-w-2xl">
+        <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          Provider Hub & Real Upstream Connectivity
+        </h2>
+        <p class="mt-2 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
+          Honest status reporting. CRouter connects to actual upstream APIs and informs you directly when a provider is unconfigured.
+        </p>
+      </div>
+
+      <!-- Providers Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">CommandCode</span>
+            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+              Connected
+            </span>
+          </div>
+          <p class="text-xs text-zinc-500">70+ accessible upstream models (DeepSeek, Ling, Poolside, Claude, GPT).</p>
+          <div class="pt-1 text-[11px] font-mono text-zinc-600 dark:text-zinc-400">
+            Active Provider
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Google Gemini</span>
+            <span class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
+              BYOK Optional
+            </span>
+          </div>
+          <p class="text-xs text-zinc-500">Add GEMINI_API_KEY to route requests to Gemini 1.5 Flash and Pro directly.</p>
+          <div class="pt-1 text-[11px] font-mono text-zinc-600 dark:text-zinc-400">
+            Native Adapter
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">OpenRouter</span>
+            <span class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
+              BYOK Optional
+            </span>
+          </div>
+          <p class="text-xs text-zinc-500">Add OPENROUTER_API_KEY for open-source model routing (Llama 3.2, Qwen).</p>
+          <div class="pt-1 text-[11px] font-mono text-zinc-600 dark:text-zinc-400">
+            Native Adapter
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Local Sandbox</span>
+            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+              Ready (Port 8001)
+            </span>
+          </div>
+          <p class="text-xs text-zinc-500">Deterministic local mock engine with fault injection for automated tests.</p>
+          <div class="pt-1 text-[11px] font-mono text-zinc-600 dark:text-zinc-400">
+            Built-in Sandbox
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: INTEGRATIONS (IDE & CLI) -->
+      <div id="integrations" class="pt-6">
+        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+          Tested IDE & CLI Integrations
+        </h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
+            Cursor IDE
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
+            Claude Code
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
+            OpenAI Codex
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
+            Cline Assistant
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
+            Antigravity
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-3 text-center text-xs font-medium text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <i data-lucide="terminal" class="h-4 w-4 mx-auto mb-1.5 text-zinc-500"></i>
+            Python SDK
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION 3: DEVELOPER QUICKSTART -->
   <section id="quickstart" class="border-t border-zinc-200/80 dark:border-zinc-800/80 px-4 py-16 sm:px-6">
     <div class="mx-auto max-w-7xl space-y-8">
