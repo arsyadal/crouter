@@ -142,6 +142,13 @@ class OpenRouterAdapter(BaseProviderAdapter):
                         break
                     try:
                         chunk_dict = json.loads(data_str)
+                        if isinstance(chunk_dict, dict) and "error" in chunk_dict:
+                            err_msg = chunk_dict["error"].get(
+                                "message", "OpenRouter upstream stream error"
+                            )
+                            raise UpstreamProviderError(
+                                err_msg, provider=self.provider_name
+                            )
                         yield ChatCompletionChunk.model_validate(chunk_dict)
                     except json.JSONDecodeError:
                         continue

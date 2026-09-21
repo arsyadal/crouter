@@ -75,11 +75,28 @@ async def chat_completions(
             ) = await routing_engine.execute_streaming(request_body, db=db)
         except Exception as e:
             await concurrency_leaser.release(api_key.id)
-            metrics.inc_request(request_body.model, "unknown", 500)
+            status_code = getattr(e, "status_code", 500)
+            metrics.inc_request(request_body.model, "none", status_code)
+            try:
+                event = RequestEvent(
+                    tenant_id=api_key.tenant_id,
+                    request_id=request_id,
+                    model_alias=request_body.model,
+                    selected_provider="none",
+                    status_code=status_code,
+                    duration_ms=int((time.perf_counter() - start_time) * 1000.0),
+                    prompt_tokens=max(1, sum(len(m.content) for m in request_body.messages) // 4),
+                    completion_tokens=0,
+                )
+                db.add(event)
+                await db.commit()
+            except Exception:
+                pass
             raise e
 
         async def sse_generator():
             chunks_count = 0
+            final_status = 200
             try:
                 async for chunk in chunk_stream:
                     chunks_count += 1
@@ -87,8 +104,10 @@ async def chat_completions(
                     yield f"data: {payload}\n\n"
                 yield "data: [DONE]\n\n"
             except Exception as stream_exc:
+                final_status = 502
                 logger.error(f"Stream error after {chunks_count} chunks: {stream_exc}")
-                # ADR-04: Cannot failover mid-stream; raise / disconnect
+                # Record breaker failure for mid-stream disconnect
+                await routing_engine.circuit_breaker.record_failure(selected_route.route_key)
                 error_payload = json.dumps(
                     {
                         "error": {
@@ -104,7 +123,24 @@ async def chat_completions(
                 await concurrency_leaser.release(api_key.id)
                 duration_ms = int((time.perf_counter() - start_time) * 1000.0)
                 metrics.observe_duration(duration_ms / 1000.0)
-                metrics.inc_request(request_body.model, selected_route.provider_name, 200)
+                metrics.inc_request(request_body.model, selected_route.provider_name, final_status)
+                try:
+                    from apps.gateway.api.deps import async_session_maker
+                    async with async_session_maker() as audit_session:
+                        event = RequestEvent(
+                            tenant_id=api_key.tenant_id,
+                            request_id=request_id,
+                            model_alias=request_body.model,
+                            selected_provider=selected_route.provider_name,
+                            status_code=final_status,
+                            duration_ms=duration_ms,
+                            prompt_tokens=max(1, sum(len(m.content) for m in request_body.messages) // 4),
+                            completion_tokens=chunks_count,
+                        )
+                        audit_session.add(event)
+                        await audit_session.commit()
+                except Exception as audit_err:
+                    logger.warning(f"Failed to record streaming audit event: {audit_err}")
 
         response_headers = {
             "Content-Type": "text/event-stream",
@@ -119,12 +155,32 @@ async def chat_completions(
 
     # Non-streaming Path
     try:
-        (
-            completion_response,
-            selected_route,
-            attempts,
-            upstream_latency_ms,
-        ) = await routing_engine.execute_non_streaming(request_body, db=db)
+        try:
+            (
+                completion_response,
+                selected_route,
+                attempts,
+                upstream_latency_ms,
+            ) = await routing_engine.execute_non_streaming(request_body, db=db)
+        except Exception as e:
+            status_code = getattr(e, "status_code", 500)
+            metrics.inc_request(request_body.model, "none", status_code)
+            try:
+                event = RequestEvent(
+                    tenant_id=api_key.tenant_id,
+                    request_id=request_id,
+                    model_alias=request_body.model,
+                    selected_provider="none",
+                    status_code=status_code,
+                    duration_ms=int((time.perf_counter() - start_time) * 1000.0),
+                    prompt_tokens=max(1, sum(len(m.content) for m in request_body.messages) // 4),
+                    completion_tokens=0,
+                )
+                db.add(event)
+                await db.commit()
+            except Exception:
+                pass
+            raise e
 
         gateway_latency_ms = (time.perf_counter() - start_time) * 1000.0
         metrics.observe_duration(gateway_latency_ms / 1000.0)

@@ -87,12 +87,77 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+import logging
+
+logger = logging.getLogger("crouter.deps")
+
 # Shared instances for singletons / engines
 _redis_client = None
 _rate_limiter = None
 _concurrency_leaser = None
 _circuit_breaker = None
 _routing_engine = None
+
+
+async def init_redis():
+    """Connect to Redis at startup or fallback based on REDIS_FALLBACK_IN_MEMORY."""
+    global _redis_client, _rate_limiter, _concurrency_leaser, _circuit_breaker, _routing_engine
+    try:
+        import redis.asyncio as aioredis
+
+        client = aioredis.from_url(
+            settings.REDIS_URL, decode_responses=True, socket_timeout=1.0
+        )
+        await client.ping()
+        _redis_client = client
+        logger.info("Successfully connected to Redis at %s", settings.REDIS_URL)
+    except Exception as e:
+        _redis_client = None
+        if not settings.REDIS_FALLBACK_IN_MEMORY:
+            logger.error(
+                "Redis connection failed and REDIS_FALLBACK_IN_MEMORY=False: %s", e
+            )
+            raise RuntimeError(f"Redis is required but connection failed: {e}")
+        logger.warning(
+            "Redis unavailable at startup, using in-memory fallback (REDIS_FALLBACK_IN_MEMORY=True): %s",
+            e,
+        )
+
+    # Instantiate singletons with active redis client (or None for fallback)
+    _rate_limiter = RateLimiter(redis_client=_redis_client)
+    _concurrency_leaser = ConcurrencyLeaser(redis_client=_redis_client)
+    _circuit_breaker = CircuitBreaker(
+        failure_threshold=settings.BREAKER_FAILURE_THRESHOLD,
+        cooldown_seconds=settings.BREAKER_COOLDOWN_SECONDS,
+        redis_client=_redis_client,
+    )
+    _routing_engine = RoutingEngine(circuit_breaker=_circuit_breaker)
+    return _redis_client
+
+
+async def close_redis():
+    """Gracefully disconnect Redis pool on shutdown."""
+    global _redis_client
+    if _redis_client is not None:
+        try:
+            await _redis_client.aclose()
+        except Exception:
+            pass
+        _redis_client = None
+
+
+def reset_singletons(redis_client=None):
+    """Helper to reset all singletons (used by tests for clean isolation)."""
+    global _redis_client, _rate_limiter, _concurrency_leaser, _circuit_breaker, _routing_engine
+    _redis_client = redis_client
+    _rate_limiter = RateLimiter(redis_client=redis_client)
+    _concurrency_leaser = ConcurrencyLeaser(redis_client=redis_client)
+    _circuit_breaker = CircuitBreaker(
+        failure_threshold=settings.BREAKER_FAILURE_THRESHOLD,
+        cooldown_seconds=settings.BREAKER_COOLDOWN_SECONDS,
+        redis_client=redis_client,
+    )
+    _routing_engine = RoutingEngine(circuit_breaker=_circuit_breaker)
 
 
 async def get_redis():

@@ -17,6 +17,7 @@ from packages.adapters.mock import MockAdapter
 
 TEST_API_KEY = "cr_live_testkey12345678901234567890"
 TEST_REVOKED_KEY = "cr_live_revokedkey1234567890123456"
+TEST_BURST_KEY = "cr_live_burstkey1234567890123456789"
 
 
 @pytest.fixture(scope="session")
@@ -61,7 +62,14 @@ async def test_db():
             max_concurrency=10,
             revoked_at=datetime.now(timezone.utc),
         )
-        session.add_all([k_valid, k_revoked])
+        k_burst = APIKey(
+            tenant_id=t.id,
+            key_hash=hashlib.sha256(TEST_BURST_KEY.encode()).hexdigest(),
+            key_prefix=TEST_BURST_KEY[:12],
+            rate_limit_rpm=2,
+            max_concurrency=1,
+        )
+        session.add_all([k_valid, k_revoked, k_burst])
 
         # Seed mock-a, mock-b and auto/coding policy
         p_mock_a = Provider(
@@ -147,6 +155,10 @@ async def client(test_db):
             yield session
 
     import apps.gateway.api.deps as deps
+    from apps.gateway.core.telemetry import metrics
+
+    metrics.reset()
+    deps.reset_singletons()
 
     app.dependency_overrides[deps.get_db] = override_get_db
     deps._routing_engine = routing_engine
@@ -159,4 +171,6 @@ async def client(test_db):
         yield c
 
     app.dependency_overrides.clear()
+    deps.reset_singletons()
+    metrics.reset()
     await mock_http_client.aclose()

@@ -1,14 +1,49 @@
 import time
+import math
+import logging
 from typing import Optional, Tuple, Dict, Any
-from apps.gateway.core.errors import RateLimitExceededError
+from apps.gateway.core.config import settings
+from apps.gateway.core.errors import CRouterException
+
+logger = logging.getLogger("crouter.limiter")
+
+SLIDING_WINDOW_LUA = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local member = ARGV[4]
+local clear_before = now - window
+
+-- Remove expired elements
+redis.call('ZREMRANGEBYSCORE', key, '-inf', clear_before)
+
+-- Count remaining elements in window
+local current_count = redis.call('ZCARD', key)
+
+if current_count < limit then
+    redis.call('ZADD', key, now, member)
+    redis.call('EXPIRE', key, math.ceil(window) + 5)
+    return {1, 0}
+else
+    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local retry_after = 10
+    if oldest and #oldest >= 2 then
+        local oldest_ts = tonumber(oldest[2])
+        retry_after = math.max(1, math.ceil(oldest_ts + window - now))
+    end
+    return {0, retry_after}
+end
+"""
 
 
 class RateLimiter:
-    """Sliding-window rate limiter backed by Redis with in-memory fallback."""
+    """Sliding-window rate limiter backed by Redis with atomic Lua script and in-memory fallback."""
 
     def __init__(self, redis_client: Optional[Any] = None):
         self.redis = redis_client
         self._local_buckets: Dict[str, list[float]] = {}
+        self._lua_sha: Optional[str] = None
 
     async def check_rate_limit(
         self, key_id: str, limit_rpm: int
@@ -22,32 +57,34 @@ class RateLimiter:
 
         if self.redis:
             try:
-                # Sliding window using Redis sorted set
                 zset_key = f"crouter:ratelimit:zset:{key_id}"
-                pipe = self.redis.pipeline()
-                # Remove timestamps older than now - 60s
-                pipe.zremrangebyscore(zset_key, 0, now - window_seconds)
-                # Count current elements
-                pipe.zcard(zset_key)
-                # Add current timestamp
-                pipe.zadd(zset_key, {f"{now}_{time.perf_counter()}": now})
-                # Set TTL
-                pipe.expire(zset_key, int(window_seconds) + 5)
-                results = await pipe.execute()
-                current_count = results[1]
-
-                if current_count >= limit_rpm:
-                    # Over limit - find oldest timestamp in window to calculate retry_after
-                    oldest = await self.redis.zrange(zset_key, 0, 0, withscores=True)
-                    if oldest:
-                        retry_after = max(1, int(oldest[0][1] + window_seconds - now))
-                    else:
-                        retry_after = 10
-                    return False, retry_after
-
-                return True, 0
-            except Exception:
-                pass  # Fallback to local memory if Redis error
+                member = f"{now}_{time.perf_counter()}"
+                res = await self.redis.eval(
+                    SLIDING_WINDOW_LUA,
+                    1,
+                    zset_key,
+                    str(now),
+                    str(window_seconds),
+                    str(limit_rpm),
+                    member,
+                )
+                allowed = bool(res[0] == 1)
+                retry_after = int(res[1])
+                return allowed, retry_after
+            except Exception as e:
+                logger.warning(f"Redis rate limit check error: {e}")
+                if not settings.REDIS_FALLBACK_IN_MEMORY:
+                    raise CRouterException(
+                        f"Redis rate limit error and fallback disabled: {e}",
+                        status_code=500,
+                        error_code="redis_outage",
+                    )
+        elif not settings.REDIS_FALLBACK_IN_MEMORY:
+            raise CRouterException(
+                "Redis connection is required in production mode (REDIS_FALLBACK_IN_MEMORY=False).",
+                status_code=500,
+                error_code="redis_outage",
+            )
 
         # Local in-memory sliding window
         timestamps = self._local_buckets.setdefault(key_id, [])
@@ -87,8 +124,20 @@ class ConcurrencyLeaser:
                     await self.redis.decr(redis_key)
                     return False, current - 1
                 return True, current
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Redis concurrency acquire error: {e}")
+                if not settings.REDIS_FALLBACK_IN_MEMORY:
+                    raise CRouterException(
+                        f"Redis concurrency error: {e}",
+                        status_code=500,
+                        error_code="redis_outage",
+                    )
+        elif not settings.REDIS_FALLBACK_IN_MEMORY:
+            raise CRouterException(
+                "Redis connection is required in production mode (REDIS_FALLBACK_IN_MEMORY=False).",
+                status_code=500,
+                error_code="redis_outage",
+            )
 
         current = self._local_concurrency.get(key_id, 0)
         if current >= max_concurrency:
@@ -105,8 +154,14 @@ class ConcurrencyLeaser:
                 if val < 0:
                     await self.redis.set(redis_key, 0)
                 return
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Redis concurrency release error: {e}")
+                if not settings.REDIS_FALLBACK_IN_MEMORY:
+                    raise CRouterException(
+                        f"Redis concurrency release error: {e}",
+                        status_code=500,
+                        error_code="redis_outage",
+                    )
 
         current = self._local_concurrency.get(key_id, 0)
         if current > 0:

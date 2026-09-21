@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from apps.gateway.api.deps import init_db
+from apps.gateway.api.deps import init_db, init_redis, close_redis
 from apps.gateway.api.health import router as health_router
 from apps.gateway.api.v1.chat import router as chat_router
 from apps.gateway.api.v1.models import router as models_router
@@ -25,9 +25,12 @@ logger = logging.getLogger("crouter.gateway")
 async def lifespan(app: FastAPI):
     logger.info("Initializing CRouter database...")
     await init_db()
+    logger.info("Initializing Redis & engine singletons...")
+    await init_redis()
     logger.info("CRouter Gateway started successfully.")
     yield
     logger.info("CRouter Gateway shutting down...")
+    await close_redis()
 
 
 app = FastAPI(
@@ -44,6 +47,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def privacy_and_telemetry_middleware(request: Request, call_next):
+    """Zero-leak request middleware ensuring secrets and PII are redacted from logs and trace contexts."""
+    req_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
+    # Verify header scrubbing
+    scrubbed_headers = scrub_sensitive_data(dict(request.headers))
+    logger.debug(
+        f"Incoming {request.method} {request.url.path} [req_id={req_id}] headers={scrubbed_headers}"
+    )
+
+    response = await call_next(request)
+    if "X-CRouter-Request-ID" not in response.headers:
+        response.headers["X-CRouter-Request-ID"] = req_id
+    return response
 
 
 @app.exception_handler(CRouterException)

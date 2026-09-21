@@ -113,7 +113,7 @@ class GeminiAdapter(BaseProviderAdapter):
                 content = cand.get("content", {})
                 parts = content.get("parts", [])
                 if parts:
-                    text = parts[0].get("text", "")
+                    text = "".join(p.get("text", "") for p in parts)
                 if cand.get("finishReason"):
                     finish_reason = cand.get("finishReason").lower()
 
@@ -196,7 +196,7 @@ class GeminiAdapter(BaseProviderAdapter):
                             continue
                         cand = candidates[0]
                         parts = cand.get("content", {}).get("parts", [])
-                        text = parts[0].get("text", "") if parts else ""
+                        text = "".join(p.get("text", "") for p in parts) if parts else ""
                         finish_reason = (
                             cand.get("finishReason").lower()
                             if cand.get("finishReason")

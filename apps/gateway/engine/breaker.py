@@ -31,6 +31,8 @@ class CircuitBreaker:
 
     async def get_state(self, route_key: str) -> CircuitState:
         now = time.time()
+        from apps.gateway.core.telemetry import metrics
+
         if self.redis:
             try:
                 state_raw = await self.redis.get(f"crouter:breaker:{route_key}:state")
@@ -48,8 +50,11 @@ class CircuitBreaker:
                         await self.redis.set(
                             f"crouter:breaker:{route_key}:state", CircuitState.HALF_OPEN
                         )
+                        metrics.set_circuit_breaker_status(route_key, CircuitState.HALF_OPEN.value)
                         return CircuitState.HALF_OPEN
-                return CircuitState(state)
+                cs = CircuitState(state)
+                metrics.set_circuit_breaker_status(route_key, cs.value)
+                return cs
             except Exception:
                 pass  # fallback to memory if redis fails
 
@@ -64,14 +69,20 @@ class CircuitBreaker:
         if rec["state"] == CircuitState.OPEN:
             if now - rec["opened_at"] >= self.cooldown_seconds:
                 rec["state"] = CircuitState.HALF_OPEN
+                metrics.set_circuit_breaker_status(route_key, CircuitState.HALF_OPEN.value)
                 return CircuitState.HALF_OPEN
-        return rec["state"]
+        cs = rec["state"]
+        metrics.set_circuit_breaker_status(route_key, cs.value)
+        return cs
 
     async def can_execute(self, route_key: str) -> bool:
         state = await self.get_state(route_key)
         return state in (CircuitState.CLOSED, CircuitState.HALF_OPEN)
 
     async def record_success(self, route_key: str) -> None:
+        from apps.gateway.core.telemetry import metrics
+        metrics.set_circuit_breaker_status(route_key, CircuitState.CLOSED.value)
+
         if self.redis:
             try:
                 await self.redis.set(
@@ -91,6 +102,31 @@ class CircuitBreaker:
 
     async def record_failure(self, route_key: str) -> None:
         now = time.time()
+        from apps.gateway.core.telemetry import metrics
+
+        current_state = await self.get_state(route_key)
+        # If in HALF_OPEN (canary failed), immediately re-trip to OPEN
+        if current_state == CircuitState.HALF_OPEN:
+            metrics.set_circuit_breaker_status(route_key, CircuitState.OPEN.value)
+            if self.redis:
+                try:
+                    await self.redis.set(
+                        f"crouter:breaker:{route_key}:state", CircuitState.OPEN
+                    )
+                    await self.redis.set(
+                        f"crouter:breaker:{route_key}:opened_at", str(now)
+                    )
+                    return
+                except Exception:
+                    pass
+            rec = self._local_state.setdefault(
+                route_key,
+                {"state": CircuitState.CLOSED, "failures": 0, "opened_at": 0.0},
+            )
+            rec["state"] = CircuitState.OPEN
+            rec["opened_at"] = now
+            return
+
         if self.redis:
             try:
                 fails = await self.redis.incr(f"crouter:breaker:{route_key}:failures")
@@ -102,6 +138,7 @@ class CircuitBreaker:
                     await self.redis.set(
                         f"crouter:breaker:{route_key}:opened_at", str(now)
                     )
+                    metrics.set_circuit_breaker_status(route_key, CircuitState.OPEN.value)
                 return
             except Exception:
                 pass
@@ -118,3 +155,4 @@ class CircuitBreaker:
         if rec["failures"] >= self.failure_threshold:
             rec["state"] = CircuitState.OPEN
             rec["opened_at"] = now
+            metrics.set_circuit_breaker_status(route_key, CircuitState.OPEN.value)

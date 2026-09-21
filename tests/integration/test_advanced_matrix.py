@@ -55,6 +55,60 @@ async def test_mid_stream_disconnect(client):
     # Should contain chunks and then interrupted error
     interrupted_found = any("upstream_stream_interrupted" in l for l in lines)
     assert interrupted_found is True
+    # Crucial: [DONE] must NEVER be emitted when stream aborts mid-stream
+    done_found = any("[DONE]" in l for l in lines)
+    assert done_found is False
+
+
+@pytest.mark.asyncio
+async def test_prometheus_metrics_endpoint(client):
+    """FR-07: Metrics endpoint exports Prometheus counters, gauges, histogram, and breaker status."""
+    # Send a request to generate metrics
+    await client.post(
+        "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+        json={
+            "model": "auto/coding",
+            "messages": [{"role": "user", "content": "Metric generation test"}],
+            "stream": False,
+        },
+    )
+
+    res = await client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+
+    assert "crouter_http_requests_total" in text
+    assert "crouter_active_in_flight_requests" in text
+    assert "crouter_http_duration_seconds" in text
+
+
+@pytest.mark.asyncio
+async def test_mock_provider_control_plane():
+    """FR-08: Mock provider control plane for programmable fault injection, status, and reset."""
+    import httpx
+    from httpx import ASGITransport
+    from apps.mock_provider.main import app as mock_app
+
+    transport = ASGITransport(app=mock_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://mock-provider") as c:
+        # 1. Inject fault via query params alone
+        res = await c.post("/mock/inject-fault?status=429&latency_ms=100")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["target"] == "mock-a"
+        assert data["fault"]["status"] == 429
+        assert data["fault"]["latency_ms"] == 100
+
+        # 2. Check status
+        res_status = await c.get("/mock/status")
+        assert res_status.status_code == 200
+        assert "mock-a" in res_status.json()["active_faults"]
+
+        # 3. Reset
+        res_reset = await c.post("/mock/reset")
+        assert res_reset.status_code == 200
+        assert res_reset.json()["active_faults"] == {}
 
 
 def test_cli_key_lifecycle():

@@ -1,50 +1,90 @@
 import time
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 
 logger = logging.getLogger("crouter.telemetry")
 
 
 class SimpleMetrics:
-    """Zero-dependency Prometheus-style metrics accumulator."""
+    """Prometheus-compatible metrics accumulator supporting counters, gauges, histograms, and breaker status."""
 
     def __init__(self):
-        self.requests_total: Dict[str, int] = {}
+        # Key: (model, provider, status_code) -> count
+        self.requests_total: Dict[Tuple[str, str, int], int] = {}
+        # Key: tenant_id -> count
         self.active_in_flight: Dict[str, int] = {}
-        self.durations_seconds: list[float] = []
+        # Latency samples in seconds
+        self.durations_seconds: List[float] = []
+        # Key: (route_id, state) -> 1 or 0
+        self.circuit_breaker_states: Dict[Tuple[str, str], int] = {}
 
     def inc_request(self, model: str, provider: str, status_code: int):
-        key = f'{model}_{provider}_{status_code}'
+        key = (str(model), str(provider), int(status_code))
         self.requests_total[key] = self.requests_total.get(key, 0) + 1
 
     def observe_duration(self, seconds: float):
-        self.durations_seconds.append(seconds)
-        if len(self.durations_seconds) > 1000:
+        self.durations_seconds.append(float(seconds))
+        if len(self.durations_seconds) > 2000:
             self.durations_seconds.pop(0)
 
     def set_in_flight(self, tenant_id: str, count: int):
-        self.active_in_flight[tenant_id] = count
+        self.active_in_flight[str(tenant_id)] = max(0, int(count))
+
+    def set_circuit_breaker_status(self, route_id: str, state: str):
+        for s in ("CLOSED", "OPEN", "HALF_OPEN"):
+            self.circuit_breaker_states[(route_id, s)] = 1 if s == state else 0
+
+    def reset(self):
+        """Reset metrics state for isolated test verification."""
+        self.requests_total.clear()
+        self.active_in_flight.clear()
+        self.durations_seconds.clear()
+        self.circuit_breaker_states.clear()
 
     def export_prometheus(self) -> str:
-        lines = [
+        lines: List[str] = [
             "# HELP crouter_http_requests_total Total HTTP requests processed by CRouter",
             "# TYPE crouter_http_requests_total counter",
         ]
-        for key, count in self.requests_total.items():
-            parts = key.split("_")
-            model, provider, status = parts[0], parts[1], parts[2]
+        for (model, provider, status), count in sorted(self.requests_total.items()):
             lines.append(
                 f'crouter_http_requests_total{{model="{model}",provider="{provider}",status_code="{status}"}} {count}'
             )
 
-        lines.append(
-            "# HELP crouter_http_requests_in_flight Active in-flight requests"
-        )
-        lines.append("# TYPE crouter_http_requests_in_flight gauge")
-        for tenant_id, count in self.active_in_flight.items():
+        lines.extend([
+            "# HELP crouter_active_in_flight_requests Active in-flight requests",
+            "# TYPE crouter_active_in_flight_requests gauge",
+        ])
+        for tenant_id, count in sorted(self.active_in_flight.items()):
             lines.append(
                 f'crouter_active_in_flight_requests{{tenant_id="{tenant_id}"}} {count}'
             )
+
+        if self.circuit_breaker_states:
+            lines.extend([
+                "# HELP crouter_circuit_breaker_status Circuit breaker state per route (1=active, 0=inactive)",
+                "# TYPE crouter_circuit_breaker_status gauge",
+            ])
+            for (route_id, state), val in sorted(self.circuit_breaker_states.items()):
+                lines.append(
+                    f'crouter_circuit_breaker_status{{route_id="{route_id}",state="{state}"}} {val}'
+                )
+
+        # Durations histogram
+        buckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+        lines.extend([
+            "# HELP crouter_http_duration_seconds HTTP request duration in seconds",
+            "# TYPE crouter_http_duration_seconds histogram",
+        ])
+        total_count = len(self.durations_seconds)
+        total_sum = sum(self.durations_seconds) if total_count > 0 else 0.0
+
+        for b in buckets:
+            b_count = sum(1 for d in self.durations_seconds if d <= b)
+            lines.append(f'crouter_http_duration_seconds_bucket{{le="{b}"}} {b_count}')
+        lines.append(f'crouter_http_duration_seconds_bucket{{le="+Inf"}} {total_count}')
+        lines.append(f'crouter_http_duration_seconds_sum {total_sum:.6f}')
+        lines.append(f'crouter_http_duration_seconds_count {total_count}')
 
         return "\n".join(lines) + "\n"
 

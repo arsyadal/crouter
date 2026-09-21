@@ -29,17 +29,17 @@ async def health_live():
 @app.post("/mock/inject-fault")
 async def inject_fault(
     target: Optional[str] = Query(None),
-    status: int = Query(503),
-    latency_ms: int = Query(0),
+    status: Optional[int] = Query(None),
+    latency_ms: Optional[int] = Query(None),
     drop_after_chunks: Optional[int] = Query(None),
     body: Optional[FaultInjectionRequest] = None,
 ):
     """Inject programmable faults for specific provider targets (e.g. mock-a)."""
-    t = target or (body.target if body else "mock-a")
-    st = status if target is not None else (body.status if body else 503)
-    lat = latency_ms if latency_ms > 0 else (body.latency_ms if body else 0)
-    drop = drop_after_chunks or (body.drop_after_chunks if body else None)
-    msg = body.message if body else f"Injected fault {st} for {t}"
+    t = target or (body.target if body and body.target else "mock-a")
+    st = status if status is not None else (body.status if body and body.status is not None else 503)
+    lat = latency_ms if latency_ms is not None else (body.latency_ms if body and body.latency_ms is not None else 0)
+    drop = drop_after_chunks if drop_after_chunks is not None else (body.drop_after_chunks if body else None)
+    msg = body.message if body and body.message else f"Injected fault {st} for {t}"
 
     fault_registry[t] = {
         "status": st,
