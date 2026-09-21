@@ -35,6 +35,7 @@ from apps.gateway.schemas.chat import (
 )
 from packages.adapters.gemini import GeminiAdapter
 from packages.adapters.openrouter import OpenRouterAdapter
+from packages.adapters.commandcode import CommandCodeAdapter
 from packages.adapters.mock import MockAdapter
 from apps.gateway.engine.router import RoutingEngine
 from apps.gateway.engine.breaker import CircuitBreaker
@@ -50,7 +51,8 @@ def print_banner():
 def get_keys():
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
-    return gemini_key, openrouter_key
+    commandcode_key = os.getenv("COMMANDCODE_API_KEY", "").strip()
+    return gemini_key, openrouter_key, commandcode_key
 
 
 async def test_gemini(api_key: str):
@@ -162,6 +164,61 @@ async def test_openrouter(api_key: str):
     return True
 
 
+async def test_commandcode(api_key: str):
+    print("\n[+] Testing 9Router / Command Code Live Provider...")
+    model_name = "inclusionai/ling-3.0-flash-sante:free"
+    adapter = CommandCodeAdapter(api_key=api_key, timeout_seconds=25.0)
+
+    if not adapter.validate_config():
+        print("  [!] FAILED: CommandCodeAdapter config validation failed.")
+        return False
+
+    req = ChatCompletionRequest(
+        model=model_name,
+        messages=[
+            ChatMessage(role="system", content="You are a helpful platform engineering AI."),
+            ChatMessage(role="user", content="Answer in exactly 5 words: What is CRouter?"),
+        ],
+        temperature=0.2,
+        max_tokens=50,
+        stream=False,
+    )
+
+    # 1. Non-streaming test
+    print(f"  [1/2] Sending non-streaming completion to '{model_name}'...")
+    start_time = time.perf_counter()
+    try:
+        res = await adapter.send_completion(req, target_model=model_name)
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        text = res.choices[0].message.content.strip()
+        print(f"  [✓] Response received in {duration_ms:.1f}ms:")
+        print(f"      \"{text}\"")
+        print(f"      Tokens: prompt={res.usage.prompt_tokens}, completion={res.usage.completion_tokens}")
+    except Exception as e:
+        print(f"  [✗] Non-streaming 9Router/CommandCode request failed: {e}")
+        return False
+
+    # 2. Streaming test
+    print(f"  [2/2] Sending streaming SSE completion to '{model_name}'...")
+    req.stream = True
+    start_time = time.perf_counter()
+    stream_chunks = []
+    try:
+        async for chunk in adapter.stream_completion(req, target_model=model_name):
+            if chunk.choices and chunk.choices[0].delta.content:
+                stream_chunks.append(chunk.choices[0].delta.content)
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        full_stream_text = "".join(stream_chunks).strip()
+        print(f"  [✓] Stream completed in {duration_ms:.1f}ms ({len(stream_chunks)} chunks):")
+        print(f"      \"{full_stream_text}\"")
+    except Exception as e:
+        print(f"  [✗] Streaming 9Router/CommandCode request failed: {e}")
+        return False
+
+    print("  [SUCCESS] 9Router / Command Code live provider verified 100% operational!")
+    return True
+
+
 async def test_mock_engine():
     print("\n[+] Testing Deterministic Rp0 Mock Engine & Route Resolution...")
     breaker = CircuitBreaker()
@@ -176,20 +233,21 @@ async def test_mock_engine():
     )
 
     print("  [1/3] Testing routing resolution for 'auto/coding'...")
-    candidates = await engine.resolve_routes("auto/coding")
-    print(f"  [✓] Resolved {len(candidates)} candidate routes: {[c.provider_name for c in candidates]}")
+    routes_coding = await engine.resolve_routes("auto/coding")
+    print(f"  [✓] Resolved {len(routes_coding)} candidate routes: {[r.provider_name for r in routes_coding]}")
 
     print("  [2/3] Testing routing resolution for 'fast/chat'...")
-    candidates_chat = await engine.resolve_routes("fast/chat")
-    print(f"  [✓] Resolved {len(candidates_chat)} candidate routes: {[c.provider_name for c in candidates_chat]}")
+    routes_chat = await engine.resolve_routes("fast/chat")
+    print(f"  [✓] Resolved {len(routes_chat)} candidate routes: {[r.provider_name for r in routes_chat]}")
 
-    # 3. Check if mock provider is running locally to exercise execution
+    # Check if local mock server is reachable
     import httpx
-    mock_url = os.getenv("MOCK_PROVIDER_URL", "http://localhost:8001").rstrip("/")
+
+    mock_url = os.getenv("MOCK_PROVIDER_URL", "http://localhost:8001")
     is_mock_running = False
     try:
         async with httpx.AsyncClient(timeout=1.5) as client:
-            res = await client.get(f"{mock_url}/health")
+            res = await client.get(f"{mock_url}/health/live")
             if res.status_code == 200:
                 is_mock_running = True
     except Exception:
@@ -212,31 +270,40 @@ async def test_mock_engine():
 
 async def main():
     parser = argparse.ArgumentParser(description="CRouter Live Traffic Smoke Test Harness")
-    parser.add_argument("--provider", choices=["gemini", "openrouter", "all"], default="all")
+    parser.add_argument(
+        "--provider",
+        choices=["gemini", "openrouter", "commandcode", "9router", "all"],
+        default="all",
+    )
     parser.add_argument("--mock-only", action="store_true", help="Run only local Rp0 mock verification")
     args = parser.parse_args()
 
     print_banner()
-    gemini_key, openrouter_key = get_keys()
+    gemini_key, openrouter_key, commandcode_key = get_keys()
 
     print("\n[Configuration Status]")
-    print(f"  - Google Gemini Key:   {'[DETECTED]' if gemini_key else '[NOT CONFIGURED] (Rp0 local default)'}")
-    print(f"  - OpenRouter Key:      {'[DETECTED]' if openrouter_key else '[NOT CONFIGURED] (Rp0 local default)'}")
+    print(f"  - Google Gemini Key:   {'[DETECTED]' if gemini_key else '[NOT CONFIGURED]'}")
+    print(f"  - OpenRouter Key:      {'[DETECTED]' if openrouter_key else '[NOT CONFIGURED]'}")
+    print(f"  - 9Router/CommandCode: {'[DETECTED]' if commandcode_key else '[NOT CONFIGURED]'}")
 
-    if args.mock_only or (not gemini_key and not openrouter_key):
+    if args.mock_only or (not gemini_key and not openrouter_key and not commandcode_key):
         print("\n" + "-" * 72)
         print("NOTICE: No live API keys detected in environment or .env.")
         print("CRouter is running in zero-budget Rp0 Local Mock Mode by design.")
         print("To experiment with live traffic:")
         print("  1. Copy .env.example to .env:  cp .env.example .env")
-        print("  2. Set GEMINI_API_KEY=your_key  (Get free key at https://aistudio.google.com/)")
-        print("  3. Set OPENROUTER_API_KEY=your_key  (https://openrouter.ai/keys)")
-        print("  4. Rerun this script:          python scripts/smoke_test_live.py")
+        print("  2. Set COMMANDCODE_API_KEY=your_key  (https://commandcode.ai/settings)")
+        print("  3. Set GEMINI_API_KEY=your_key       (https://aistudio.google.com/)")
+        print("  4. Rerun this script:                 python scripts/smoke_test_live.py")
         print("-" * 72)
         success = await test_mock_engine()
         sys.exit(0 if success else 1)
 
     results = []
+    if (args.provider in ("commandcode", "9router", "all")) and commandcode_key:
+        ok = await test_commandcode(commandcode_key)
+        results.append(("9Router / Command Code Live", ok))
+
     if (args.provider in ("gemini", "all")) and gemini_key:
         ok = await test_gemini(gemini_key)
         results.append(("Gemini Live", ok))

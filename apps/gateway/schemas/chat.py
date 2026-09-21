@@ -21,7 +21,7 @@ class ChatCompletionRequest(BaseModel):
 
 class ChatResponseMessage(BaseModel):
     role: str = "assistant"
-    content: str
+    content: Optional[str] = ""
 
 
 class ChatChoice(BaseModel):

@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
+    COMMANDCODE_API_KEY: Optional[str] = None
+    COMMANDCODE_BASE_URL: str = "https://api.commandcode.ai/provider/v1"
 
     DEFAULT_RATE_LIMIT_RPM: int = 60
     DEFAULT_MAX_CONCURRENCY: int = 10

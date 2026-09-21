@@ -24,6 +24,7 @@ from packages.adapters.base import BaseProviderAdapter
 from packages.adapters.mock import MockAdapter
 from packages.adapters.gemini import GeminiAdapter
 from packages.adapters.openrouter import OpenRouterAdapter
+from packages.adapters.commandcode import CommandCodeAdapter
 from apps.gateway.core.config import settings
 
 logger = logging.getLogger("crouter.router")
@@ -88,6 +89,13 @@ class RoutingEngine:
                 provider_name=candidate.provider_name,
                 base_url=candidate.base_url,
                 api_key=api_key or settings.OPENROUTER_API_KEY,
+                timeout_seconds=timeout_s,
+            )
+        elif ptype in ("commandcode", "9router"):
+            return CommandCodeAdapter(
+                provider_name=candidate.provider_name,
+                base_url=candidate.base_url or settings.COMMANDCODE_BASE_URL,
+                api_key=api_key or settings.COMMANDCODE_API_KEY,
                 timeout_seconds=timeout_s,
             )
         else:
@@ -225,6 +233,53 @@ class RoutingEngine:
                     priority=1,
                     secret_env_var="OPENROUTER_API_KEY",
                     timeout_ms=15000,
+                )
+            ]
+
+        # Alias: 9router or commandcode (auto-routes to free models)
+        if model_alias in ("9router", "commandcode", "9router/chat"):
+            return [
+                RouteCandidate(
+                    provider_name="commandcode",
+                    provider_type="commandcode",
+                    upstream_model="inclusionai/ling-3.0-flash-sante:free",
+                    priority=1,
+                    base_url=settings.COMMANDCODE_BASE_URL,
+                    secret_env_var="COMMANDCODE_API_KEY",
+                    timeout_ms=20000,
+                ),
+                RouteCandidate(
+                    provider_name="commandcode",
+                    provider_type="commandcode",
+                    upstream_model="poolside/laguna-s-2.1-free",
+                    priority=2,
+                    base_url=settings.COMMANDCODE_BASE_URL,
+                    secret_env_var="COMMANDCODE_API_KEY",
+                    timeout_ms=20000,
+                ),
+                RouteCandidate(
+                    provider_name="mock-a",
+                    provider_type="mock",
+                    upstream_model="mock-deterministic",
+                    priority=3,
+                    base_url=settings.MOCK_PROVIDER_URL,
+                    timeout_ms=5000,
+                ),
+            ]
+
+        # Explicit direct 9Router / Command Code model with 9router/ or commandcode/ prefix
+        if model_alias.startswith("9router/") or model_alias.startswith("commandcode/"):
+            prefix = "9router/" if model_alias.startswith("9router/") else "commandcode/"
+            target = model_alias.replace(prefix, "", 1)
+            return [
+                RouteCandidate(
+                    provider_name="commandcode",
+                    provider_type="commandcode",
+                    upstream_model=target,
+                    priority=1,
+                    base_url=settings.COMMANDCODE_BASE_URL,
+                    secret_env_var="COMMANDCODE_API_KEY",
+                    timeout_ms=25000,
                 )
             ]
 
