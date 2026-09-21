@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Request Throughput (req/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(crouter_http_requests_total[1m])) by (model, provider)",
+          "legendFormat": "{{model}} ({{provider}})"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "Active In-Flight Requests",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(crouter_active_in_flight_requests) by (tenant_id)",
+          "legendFormat": "Tenant {{tenant_id}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["crouter", "ai-gateway"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "CRouter Gateway Overview",
+  "version": 1
+}

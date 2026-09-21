@@ -1,0 +1,70 @@
+services:
+  gateway:
+    build:
+      context: ../../
+      dockerfile: infra/compose/Dockerfile.gateway
+    container_name: crouter_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://crouter:crouter_secret@postgres:5432/crouter_db
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_FALLBACK_IN_MEMORY=false
+      - MOCK_PROVIDER_URL=http://mock_provider:8001
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock_provider:
+        condition: service_started
+    restart: unless-stopped
+
+  mock_provider:
+    build:
+      context: ../../
+      dockerfile: infra/compose/Dockerfile.mock
+    container_name: crouter_mock
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: crouter_postgres
+    environment:
+      POSTGRES_USER: crouter
+      POSTGRES_PASSWORD: crouter_secret
+      POSTGRES_DB: crouter_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crouter -d crouter_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: crouter_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
