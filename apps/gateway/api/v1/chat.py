@@ -142,6 +142,7 @@ async def chat_completions(
                 except Exception as audit_err:
                     logger.warning(f"Failed to record streaming audit event: {audit_err}")
 
+        first_chunk_latency_ms = (time.perf_counter() - start_time) * 1000.0
         response_headers = {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -150,6 +151,7 @@ async def chat_completions(
             "X-CRouter-Provider-Selected": selected_route.provider_name,
             "X-CRouter-Model-Selected": selected_route.upstream_model,
             "X-CRouter-Attempts": str(attempts),
+            "X-CRouter-Latency-Gateway-Ms": f"{first_chunk_latency_ms:.1f}",
         }
         return StreamingResponse(sse_generator(), headers=response_headers, media_type="text/event-stream")
 

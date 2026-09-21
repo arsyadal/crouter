@@ -105,6 +105,56 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 ---
 
+## 🖥️ Web Dashboard (Next.js / Tailwind CSS)
+
+CRouter provides an interactive visual dashboard for gateway operators and developers:
+- **Routes & Circuit Breaker Monitoring:** Real-time visibility into model aliases (`auto/coding`, `fast/chat`), provider health, and breaker states (`CLOSED`, `OPEN`, `HALF-OPEN`) with manual trip/reset simulations.
+- **API Key Management:** Issue tenant-scoped API keys with sliding-window RPM limits, view key hashes, and revoke active keys.
+- **Inference Playground:** Test completions directly in the browser with SSE streaming toggle and live diagnostic headers (`X-CRouter-Provider-Selected`, `X-CRouter-Latency-Gateway-Ms`, etc.).
+
+### Accessing the Dashboard:
+1. **Direct Gateway UI:** Navigate to `http://localhost:8000/dashboard` (or root `http://localhost:8000/`).
+2. **Next.js Standalone Frontend:** Located in `apps/dashboard/`:
+   ```bash
+   cd apps/dashboard
+   npm run dev
+   # Open http://localhost:3000
+   ```
+
+---
+
+## ⚡ Live Traffic Experimentation (BYOK)
+
+CRouter operates strictly in **Rp0 Local Mock Mode** by default. To experiment with real AI models:
+
+1. **Google Gemini:** Set `GEMINI_API_KEY` in `.env` (Free tier from [Google AI Studio](https://aistudio.google.com/)).
+2. **OpenRouter:** Set `OPENROUTER_API_KEY` in `.env` (Access to 200+ models from [OpenRouter](https://openrouter.ai/keys)).
+
+### Run Live Smoke Test Harness:
+```bash
+# Safely verifies live endpoints if keys are present, or falls back to Rp0 local mocks:
+python scripts/smoke_test_live.py
+
+# Or test specific providers:
+python scripts/smoke_test_live.py --provider gemini
+python scripts/smoke_test_live.py --provider openrouter
+```
+
+---
+
+## 📡 Gateway Admin REST API
+
+In addition to the CLI, CRouter provides REST administration endpoints under `/admin`:
+- `GET /admin/overview` — High-level telemetry, key counts, route health, and BYOK status.
+- `GET /admin/routes` — Active routing policies, priority fallback chains, and real-time breaker states.
+- `POST /admin/breaker/reset` — Reset a tripped circuit breaker for a route.
+- `POST /admin/breaker/trip` — Force-trip a circuit breaker for chaos testing.
+- `GET /admin/keys` — List all registered API keys and tenant quotas.
+- `POST /admin/keys` — Create a new API key (returns raw key once).
+- `POST /admin/keys/{id}/revoke` — Revoke an active API key.
+
+---
+
 ## 💻 CLI Usage
 
 ```bash
@@ -123,8 +173,8 @@ crouter keys revoke <key_prefix>
 ## 🧪 Testing
 
 ```bash
-# Run complete test suite locally
-pytest
+# Run complete test suite locally (38 tests)
+python -m pytest
 ```
 
 ---
@@ -132,3 +182,4 @@ pytest
 ## 📄 License
 
 CRouter is licensed under the [MIT License](LICENSE).
+

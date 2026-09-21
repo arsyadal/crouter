@@ -50,18 +50,24 @@ class GeminiAdapter(BaseProviderAdapter):
         self, request: ChatCompletionRequest, target_model: str
     ) -> dict[str, Any]:
         contents = []
-        system_instruction = None
+        system_parts = []
 
         for msg in request.messages:
             if msg.role == "system":
-                system_instruction = {"parts": [{"text": msg.content}]}
+                system_parts.append({"text": msg.content})
             else:
                 role = "model" if msg.role == "assistant" else "user"
-                contents.append({"role": role, "parts": [{"text": msg.content}]})
+                if contents and contents[-1]["role"] == role:
+                    contents[-1]["parts"].append({"text": msg.content})
+                else:
+                    contents.append({"role": role, "parts": [{"text": msg.content}]})
+
+        if not contents:
+            contents.append({"role": "user", "parts": [{"text": "Hello"}]})
 
         body: dict[str, Any] = {"contents": contents}
-        if system_instruction:
-            body["systemInstruction"] = system_instruction
+        if system_parts:
+            body["systemInstruction"] = {"parts": system_parts}
 
         generation_config: dict[str, Any] = {}
         if request.temperature is not None:
@@ -115,7 +121,8 @@ class GeminiAdapter(BaseProviderAdapter):
                 if parts:
                     text = "".join(p.get("text", "") for p in parts)
                 if cand.get("finishReason"):
-                    finish_reason = cand.get("finishReason").lower()
+                    fr = cand.get("finishReason").lower()
+                    finish_reason = "length" if fr == "max_tokens" else fr
 
             usage_meta = data.get("usageMetadata", {})
             prompt_tokens = usage_meta.get("promptTokenCount", 0)
@@ -197,11 +204,11 @@ class GeminiAdapter(BaseProviderAdapter):
                         cand = candidates[0]
                         parts = cand.get("content", {}).get("parts", [])
                         text = "".join(p.get("text", "") for p in parts) if parts else ""
-                        finish_reason = (
-                            cand.get("finishReason").lower()
-                            if cand.get("finishReason")
-                            else None
-                        )
+                        if cand.get("finishReason"):
+                            fr = cand.get("finishReason").lower()
+                            finish_reason = "length" if fr == "max_tokens" else fr
+                        else:
+                            finish_reason = None
 
                         yield ChatCompletionChunk(
                             id=completion_id,

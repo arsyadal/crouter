@@ -29,54 +29,124 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Seed default routing policy if not present
+    # Seed default routing policies and providers if not present
     async with async_session_maker() as session:
-        result = await session.execute(
-            select(RoutingPolicy).where(RoutingPolicy.alias == "auto/coding")
-        )
-        existing_policy = result.scalars().first()
-        if not existing_policy:
-            # Create default providers
+        # Check existing providers
+        res_prov = await session.execute(select(Provider))
+        prov_map = {p.name: p for p in res_prov.scalars().all()}
+
+        if "mock-a" not in prov_map:
             p_mock_a = Provider(
                 name="mock-a",
                 provider_type="mock",
                 base_url=settings.MOCK_PROVIDER_URL,
                 is_active=True,
             )
+            session.add(p_mock_a)
+            prov_map["mock-a"] = p_mock_a
+
+        if "mock-b" not in prov_map:
             p_mock_b = Provider(
                 name="mock-b",
                 provider_type="mock",
                 base_url=settings.MOCK_PROVIDER_URL,
                 is_active=True,
             )
-            session.add_all([p_mock_a, p_mock_b])
-            await session.flush()
+            session.add(p_mock_b)
+            prov_map["mock-b"] = p_mock_b
 
-            policy = RoutingPolicy(
+        if "gemini" not in prov_map:
+            p_gemini = Provider(
+                name="gemini",
+                provider_type="gemini",
+                base_url="https://generativelanguage.googleapis.com/v1beta",
+                secret_env_var="GEMINI_API_KEY",
+                is_active=True,
+            )
+            session.add(p_gemini)
+            prov_map["gemini"] = p_gemini
+
+        if "openrouter" not in prov_map:
+            p_openrouter = Provider(
+                name="openrouter",
+                provider_type="openrouter",
+                base_url="https://openrouter.ai/api/v1",
+                secret_env_var="OPENROUTER_API_KEY",
+                is_active=True,
+            )
+            session.add(p_openrouter)
+            prov_map["openrouter"] = p_openrouter
+
+        await session.flush()
+
+        # Check auto/coding policy
+        res_coding = await session.execute(
+            select(RoutingPolicy).where(RoutingPolicy.alias == "auto/coding")
+        )
+        if not res_coding.scalars().first():
+            policy_coding = RoutingPolicy(
                 alias="auto/coding",
-                description="Default auto coding policy routing between mock providers",
+                description="Default auto-coding policy routing between mock providers",
                 max_retries=2,
                 timeout_ms=5000,
             )
-            session.add(policy)
+            session.add(policy_coding)
             await session.flush()
 
             route_a = ModelRoute(
-                policy_id=policy.id,
-                provider_id=p_mock_a.id,
+                policy_id=policy_coding.id,
+                provider_id=prov_map["mock-a"].id,
                 upstream_model="mock-deterministic",
                 priority=1,
                 is_enabled=True,
             )
             route_b = ModelRoute(
-                policy_id=policy.id,
-                provider_id=p_mock_b.id,
+                policy_id=policy_coding.id,
+                provider_id=prov_map["mock-b"].id,
                 upstream_model="mock-deterministic",
                 priority=2,
                 is_enabled=True,
             )
             session.add_all([route_a, route_b])
-            await session.commit()
+
+        # Check fast/chat policy
+        res_chat = await session.execute(
+            select(RoutingPolicy).where(RoutingPolicy.alias == "fast/chat")
+        )
+        if not res_chat.scalars().first():
+            policy_chat = RoutingPolicy(
+                alias="fast/chat",
+                description="Low-latency conversational routing across Gemini, OpenRouter, and fallback",
+                max_retries=2,
+                timeout_ms=10000,
+            )
+            session.add(policy_chat)
+            await session.flush()
+
+            route_gemini = ModelRoute(
+                policy_id=policy_chat.id,
+                provider_id=prov_map["gemini"].id,
+                upstream_model="gemini-1.5-flash",
+                priority=1,
+                is_enabled=True,
+            )
+            route_openrouter = ModelRoute(
+                policy_id=policy_chat.id,
+                provider_id=prov_map["openrouter"].id,
+                upstream_model="meta-llama/llama-3.2-3b-instruct:free",
+                priority=2,
+                is_enabled=True,
+            )
+            route_mock_fallback = ModelRoute(
+                policy_id=policy_chat.id,
+                provider_id=prov_map["mock-a"].id,
+                upstream_model="mock-deterministic",
+                priority=3,
+                is_enabled=True,
+            )
+            session.add_all([route_gemini, route_openrouter, route_mock_fallback])
+
+        await session.commit()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

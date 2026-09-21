@@ -10,6 +10,8 @@ from apps.gateway.api.deps import init_db, init_redis, close_redis
 from apps.gateway.api.health import router as health_router
 from apps.gateway.api.v1.chat import router as chat_router
 from apps.gateway.api.v1.models import router as models_router
+from apps.gateway.api.admin import admin_router
+from apps.gateway.api.admin.dashboard import router as dashboard_router
 from apps.gateway.core.config import settings
 from apps.gateway.core.errors import CRouterException
 from apps.gateway.core.telemetry import metrics, scrub_sensitive_data
@@ -46,6 +48,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -120,6 +123,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
 app.include_router(health_router)
 app.include_router(chat_router, prefix="/v1")
 app.include_router(models_router, prefix="/v1")
+app.include_router(admin_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/metrics", response_class=PlainTextResponse)

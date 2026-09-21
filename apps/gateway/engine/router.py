@@ -119,7 +119,7 @@ class RoutingEngine:
 
                 if policy and policy.routes:
                     candidates = []
-                    enabled_routes = [r for r in policy.routes if r.is_enabled and r.provider.is_active]
+                    enabled_routes = [r for r in policy.routes if r.is_enabled and r.provider and r.provider.is_active]
                     enabled_routes.sort(key=lambda r: r.priority)
                     for r in enabled_routes:
                         candidates.append(
@@ -159,6 +159,35 @@ class RoutingEngine:
                 ),
             ]
 
+        # Built-in fast/chat policy
+        if model_alias == "fast/chat":
+            return [
+                RouteCandidate(
+                    provider_name="gemini",
+                    provider_type="gemini",
+                    upstream_model="gemini-1.5-flash",
+                    priority=1,
+                    secret_env_var="GEMINI_API_KEY",
+                    timeout_ms=10000,
+                ),
+                RouteCandidate(
+                    provider_name="openrouter",
+                    provider_type="openrouter",
+                    upstream_model="meta-llama/llama-3.2-3b-instruct:free",
+                    priority=2,
+                    secret_env_var="OPENROUTER_API_KEY",
+                    timeout_ms=10000,
+                ),
+                RouteCandidate(
+                    provider_name="mock-a",
+                    provider_type="mock",
+                    upstream_model="mock-deterministic",
+                    priority=3,
+                    base_url=settings.MOCK_PROVIDER_URL,
+                    timeout_ms=5000,
+                ),
+            ]
+
         # Explicit provider format check: e.g. "mock-a" or "mock-b"
         if model_alias.startswith("mock-"):
             return [
@@ -169,6 +198,33 @@ class RoutingEngine:
                     priority=1,
                     base_url=settings.MOCK_PROVIDER_URL,
                     timeout_ms=5000,
+                )
+            ]
+
+        # Explicit direct Gemini model: e.g. "gemini-1.5-flash"
+        if model_alias.startswith("gemini"):
+            return [
+                RouteCandidate(
+                    provider_name="gemini",
+                    provider_type="gemini",
+                    upstream_model=model_alias,
+                    priority=1,
+                    secret_env_var="GEMINI_API_KEY",
+                    timeout_ms=15000,
+                )
+            ]
+
+        # Explicit direct OpenRouter model with openrouter/ prefix
+        if model_alias.startswith("openrouter/"):
+            target = model_alias.replace("openrouter/", "", 1)
+            return [
+                RouteCandidate(
+                    provider_name="openrouter",
+                    provider_type="openrouter",
+                    upstream_model=target,
+                    priority=1,
+                    secret_env_var="OPENROUTER_API_KEY",
+                    timeout_ms=15000,
                 )
             ]
 
@@ -256,8 +312,8 @@ class RoutingEngine:
                 await self.circuit_breaker.record_success(route_key)
 
                 async def full_stream():
-                    yield first_chunk
                     try:
+                        yield first_chunk
                         async for chunk in stream_gen:
                             yield chunk
                     except Exception as stream_err:
@@ -265,6 +321,12 @@ class RoutingEngine:
                             f"Mid-stream connection error from {candidate.provider_name}: {stream_err}"
                         )
                         raise stream_err
+                    finally:
+                        if hasattr(stream_gen, "aclose"):
+                            try:
+                                await stream_gen.aclose()
+                            except Exception:
+                                pass
 
                 return full_stream(), candidate, attempts
 

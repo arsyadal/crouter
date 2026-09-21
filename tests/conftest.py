@@ -71,7 +71,7 @@ async def test_db():
         )
         session.add_all([k_valid, k_revoked, k_burst])
 
-        # Seed mock-a, mock-b and auto/coding policy
+        # Seed mock-a, mock-b, gemini, openrouter providers
         p_mock_a = Provider(
             name="mock-a",
             provider_type="mock",
@@ -84,7 +84,21 @@ async def test_db():
             base_url="http://mock-provider",
             is_active=True,
         )
-        session.add_all([p_mock_a, p_mock_b])
+        p_gemini = Provider(
+            name="gemini",
+            provider_type="gemini",
+            base_url="https://generativelanguage.googleapis.com/v1beta",
+            secret_env_var="GEMINI_API_KEY",
+            is_active=True,
+        )
+        p_openrouter = Provider(
+            name="openrouter",
+            provider_type="openrouter",
+            base_url="https://openrouter.ai/api/v1",
+            secret_env_var="OPENROUTER_API_KEY",
+            is_active=True,
+        )
+        session.add_all([p_mock_a, p_mock_b, p_gemini, p_openrouter])
         await session.flush()
 
         policy = RoutingPolicy(
@@ -93,7 +107,13 @@ async def test_db():
             max_retries=2,
             timeout_ms=5000,
         )
-        session.add(policy)
+        policy_chat = RoutingPolicy(
+            alias="fast/chat",
+            description="Low-latency conversational routing across Gemini, OpenRouter, and fallback",
+            max_retries=2,
+            timeout_ms=10000,
+        )
+        session.add_all([policy, policy_chat])
         await session.flush()
 
         r_a = ModelRoute(
@@ -110,7 +130,28 @@ async def test_db():
             priority=2,
             is_enabled=True,
         )
-        session.add_all([r_a, r_b])
+        r_gemini = ModelRoute(
+            policy_id=policy_chat.id,
+            provider_id=p_gemini.id,
+            upstream_model="gemini-1.5-flash",
+            priority=1,
+            is_enabled=True,
+        )
+        r_openrouter = ModelRoute(
+            policy_id=policy_chat.id,
+            provider_id=p_openrouter.id,
+            upstream_model="meta-llama/llama-3.2-3b-instruct:free",
+            priority=2,
+            is_enabled=True,
+        )
+        r_mock_fb = ModelRoute(
+            policy_id=policy_chat.id,
+            provider_id=p_mock_a.id,
+            upstream_model="mock-deterministic",
+            priority=3,
+            is_enabled=True,
+        )
+        session.add_all([r_a, r_b, r_gemini, r_openrouter, r_mock_fb])
 
         await session.commit()
 

@@ -53,6 +53,35 @@ def test_gemini_adapter_mapping():
     assert mapped["generationConfig"]["maxOutputTokens"] == 100
 
 
+def test_gemini_adapter_consecutive_messages_and_multi_system():
+    adapter = GeminiAdapter(provider_name="gemini", api_key="dummy-gemini-key")
+    req = ChatCompletionRequest(
+        model="gemini-1.5-flash",
+        messages=[
+            ChatMessage(role="system", content="System 1"),
+            ChatMessage(role="system", content="System 2"),
+            ChatMessage(role="user", content="Turn 1 part 1"),
+            ChatMessage(role="user", content="Turn 1 part 2"),
+            ChatMessage(role="assistant", content="Assistant reply"),
+            ChatMessage(role="user", content="Turn 2"),
+        ],
+    )
+    mapped = adapter.map_request(req, "gemini-1.5-flash")
+    # Both system instructions preserved
+    assert len(mapped["systemInstruction"]["parts"]) == 2
+    assert mapped["systemInstruction"]["parts"][0]["text"] == "System 1"
+    assert mapped["systemInstruction"]["parts"][1]["text"] == "System 2"
+
+    # Contents alternate properly
+    assert len(mapped["contents"]) == 3
+    assert mapped["contents"][0]["role"] == "user"
+    assert len(mapped["contents"][0]["parts"]) == 2
+    assert mapped["contents"][0]["parts"][0]["text"] == "Turn 1 part 1"
+    assert mapped["contents"][0]["parts"][1]["text"] == "Turn 1 part 2"
+    assert mapped["contents"][1]["role"] == "model"
+    assert mapped["contents"][2]["role"] == "user"
+
+
 def test_openrouter_adapter_mapping():
     adapter = OpenRouterAdapter(provider_name="openrouter", api_key="sk-or-dummy")
     assert adapter.validate_config() is True

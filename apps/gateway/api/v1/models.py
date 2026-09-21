@@ -36,7 +36,7 @@ async def list_models(
         seen.add(p.alias)
 
     # Add default aliases if not in DB
-    defaults = ["auto/coding", "mock-default", "mock-a", "mock-b"]
+    defaults = ["auto/coding", "fast/chat", "mock-default", "mock-a", "mock-b"]
     for d in defaults:
         if d not in seen:
             items.append(
